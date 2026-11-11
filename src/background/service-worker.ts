@@ -121,12 +121,20 @@ const saveSnapshot = async (listingId: string, platform: PlatformId, snapshot: L
       ...listing,
       title: snapshot.title?.trim() || listing.title,
       description: snapshot.description?.trim() || listing.description,
-      price: snapshot.price ?? listing.price,
+      price: snapshot.price && snapshot.price > 0 ? snapshot.price : listing.price > 0 ? listing.price : (snapshot.price ?? listing.price),
       location: snapshot.location?.trim() || listing.location,
       category: snapshot.category?.trim() || listing.category,
       images: snapshot.images && snapshot.images.length > 0 ? snapshot.images : listing.images,
       externalIds: snapshot.externalId ? { ...listing.externalIds, [platform]: snapshot.externalId } : listing.externalIds,
-      kijiji: snapshot.kijiji ? { ...listing.kijiji, ...snapshot.kijiji } : listing.kijiji,
+      kijiji: snapshot.kijiji
+        ? {
+            ...listing.kijiji,
+            ...snapshot.kijiji,
+            attributes: { ...listing.kijiji?.attributes, ...snapshot.kijiji.attributes },
+            formFields: { ...listing.kijiji?.formFields, ...snapshot.kijiji.formFields },
+            labeledFields: { ...listing.kijiji?.labeledFields, ...snapshot.kijiji.labeledFields },
+          }
+        : listing.kijiji,
       posts: {
         ...listing.posts,
         [platform]: {

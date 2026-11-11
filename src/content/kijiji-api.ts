@@ -536,7 +536,7 @@ export const mergeSnapshotWithListing = (listing: Listing, snapshot: KijijiAdSna
   externalId: snapshot.externalId,
   title: snapshot.title || listing.title,
   description: snapshot.description || listing.description,
-  price: snapshot.price || listing.price,
+  price: snapshot.price > 0 ? snapshot.price : listing.price > 0 ? listing.price : snapshot.price || listing.price,
   location: snapshot.location || listing.location,
   category: snapshot.category || listing.category,
   categoryId: snapshot.categoryId || listing.kijiji?.categoryId,

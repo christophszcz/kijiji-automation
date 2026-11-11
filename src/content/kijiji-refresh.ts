@@ -69,7 +69,10 @@ const captureFromEditSources = async (adId: string, listing: Listing, previousUr
     externalId: adId,
     title: primary.title || fromPage?.title || fromAccount?.title || listing.title,
     description: primary.description || fromPage?.description || fromAccount?.description || listing.description,
-    price: primary.price || fromPage?.price || fromAccount?.price || listing.price,
+    price:
+      [primary.price, fromPage?.price, fromAccount?.price, listing.price].find((value) => typeof value === 'number' && value > 0) ??
+      primary.price ??
+      listing.price,
     location: primary.location || fromPage?.location || fromAccount?.location || listing.location,
     category: primary.category || fromPage?.category || fromAccount?.category || listing.category,
     categoryId: primary.categoryId || fromAccount?.categoryId || fromPage?.categoryId,

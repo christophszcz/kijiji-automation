@@ -253,8 +253,63 @@ const fillLocation = async (address?: string) => {
 
 const selectFreePackage = () => {
   const radios = [...document.querySelectorAll<HTMLInputElement>('input[type="radio"]')]
-  const basic = radios.find((radio) => /basic|free|pkg_basic/i.test(`${radio.value} ${labelText(radio)}`))
+  const basic = radios.find((radio) => {
+    const text = `${radio.name} ${radio.value} ${labelText(radio)} ${nearbyLabel(radio)}`
+    if (/price|pricetype|amount/i.test(text)) return false
+    return /pkg_basic|featurepackage|feature package|package.*basic|\bbasic\b.*package|package.*\bfree\b/i.test(text)
+  })
   if (basic && !basic.checked) basic.click()
+}
+
+const resolveListingPrice = (listing: Listing) => {
+  const candidates = [
+    listing.price,
+    parseFloat(listing.kijiji?.formFields?.['postAdForm.priceAmount'] || ''),
+    parseFloat(listing.kijiji?.formFields?.priceAmount || ''),
+    parseFloat(listing.kijiji?.formFields?.PriceAmount || ''),
+    parseFloat(listing.kijiji?.formFields?.['price.amount'] || ''),
+  ]
+  const paid = candidates.find((value) => Number.isFinite(value) && value > 0)
+  if (paid !== undefined) return paid
+  return Number.isFinite(listing.price) ? listing.price : 0
+}
+
+const setPriceType = async (type: 'FIXED' | 'FREE' | 'CONTACT') => {
+  const radios = [...document.querySelectorAll<HTMLInputElement>('input[type="radio"]')]
+  const match = radios.find((radio) => {
+    const text = `${radio.name} ${radio.value} ${labelText(radio)} ${nearbyLabel(radio)}`
+    if (!/price|pricetype|amount|offer/i.test(text) && !/^(FIXED|FREE|CONTACT)$/i.test(radio.value)) return false
+    return normalize(radio.value) === normalize(type) || new RegExp(`\\b${type}\\b`, 'i').test(text)
+  })
+  if (match && !match.checked) {
+    match.click()
+    await delay(200)
+  }
+
+  const buttons = [...document.querySelectorAll<HTMLElement>('button, [role="radio"], [role="tab"], label')]
+  const button = buttons.find((element) => {
+    const text = `${element.textContent ?? ''} ${element.getAttribute('aria-label') ?? ''}`
+    if (/package|bump|feature|promote/i.test(text)) return false
+    if (type === 'FIXED') return /^(price|fixed price|set price|\$)$/i.test(text.trim()) || /\bfixed\b/i.test(text)
+    if (type === 'FREE') return /^(free|give.?away)$/i.test(text.trim())
+    return /\bcontact\b/i.test(text)
+  })
+  button?.click()
+}
+
+const ensureCorrectPrice = async (listing: Listing, report: StatusReporter) => {
+  const price = resolveListingPrice(listing)
+  if (price > 0) {
+    report(`Setting price to $${price}…`)
+    await setPriceType('FIXED')
+    fillText(PRICE_SELECTORS, /^(price|amount)\b/i, String(price))
+    const amountField = findTextField(PRICE_SELECTORS, /^(price|amount)\b/i)
+    if (amountField && (!amountField.value || Number(amountField.value) === 0)) {
+      setFieldValue(amountField, String(price))
+    }
+    return
+  }
+  await setPriceType('FREE')
 }
 
 const acceptTerms = () => {
@@ -328,15 +383,23 @@ const findFieldByName = (name: string) =>
     `[name="${CSS.escape(name)}"], #${CSS.escape(name)}`,
   )
 
-const applyNamedFormFields = async (formFields: Record<string, string>, report: StatusReporter) => {
+const applyNamedFormFields = async (formFields: Record<string, string>, listing: Listing, report: StatusReporter) => {
   const entries = Object.entries(formFields)
   if (entries.length === 0) return
   report(`Restoring ${entries.length} fields from the edit-ad page…`)
+  const paidPrice = resolveListingPrice(listing)
 
   for (const [name, value] of entries) {
-    if (/priceType|adType|featurePackage|package/i.test(name) && /fixed|offer|basic|free|pkg_basic/i.test(value)) {
-      // handled with package/radio helpers below as well
+    if (/priceType|price\.type/i.test(name)) {
+      if (paidPrice > 0 && /free/i.test(value)) continue
+      continue
     }
+    if (/priceAmount|price\.amount|PriceAmount/i.test(name) && paidPrice > 0) {
+      const field = findFieldByName(name)
+      if (field && !(field instanceof HTMLSelectElement)) setFieldValue(field, String(paidPrice))
+      continue
+    }
+    if (/featurePackage|featuresForm/i.test(name)) continue
 
     const field = findFieldByName(name)
     if (!field) {
@@ -350,6 +413,8 @@ const applyNamedFormFields = async (formFields: Record<string, string>, report: 
       continue
     }
     if (field instanceof HTMLInputElement && (field.type === 'radio' || field.type === 'checkbox')) {
+      const text = `${field.name} ${field.value} ${labelText(field)} ${nearbyLabel(field)}`
+      if (paidPrice > 0 && /pricetype|price type/i.test(text) && /free/i.test(`${field.value} ${text}`)) continue
       const match = [...document.querySelectorAll<HTMLInputElement>(`input[name="${CSS.escape(name)}"]`)].find(
         (input) => input.value === value || normalize(input.value) === normalize(value),
       )
@@ -371,7 +436,7 @@ const fillSavedAttributes = async (listing: Listing, report: StatusReporter) => 
   await expandMoreInfoSection()
   await waitForAttributeFields()
 
-  await applyNamedFormFields(listing.kijiji?.formFields ?? {}, report)
+  await applyNamedFormFields(listing.kijiji?.formFields ?? {}, listing, report)
   await applyLabeledFormFields(listing.kijiji?.labeledFields ?? {})
 
   const attributes = { ...listing.kijiji?.attributes }
@@ -468,15 +533,18 @@ export const autoPostKijiji = async ({ listing, report }: KijijiAutoPostInput) =
     formFields['postAdForm.title'] || formFields.adTitle || formFields.title || listing.title
   const description =
     formFields['postAdForm.description'] || formFields.description || listing.description
-  const price =
-    formFields['postAdForm.priceAmount'] || formFields.priceAmount || formFields.PriceAmount || String(listing.price)
+  const price = resolveListingPrice(listing)
 
   fillText(TITLE_SELECTORS, /^(ad )?title\b/i, title)
   fillText(DESCRIPTION_SELECTORS, /^description\b/i, description)
-  fillText(PRICE_SELECTORS, /^(price|amount)\b/i, price)
+  if (price > 0) {
+    await setPriceType('FIXED')
+    fillText(PRICE_SELECTORS, /^(price|amount)\b/i, String(price))
+  }
 
-  await applyNamedFormFields(formFields, report)
+  await applyNamedFormFields(formFields, listing, report)
   await fillSavedAttributes(listing, report)
+  await ensureCorrectPrice(listing, report)
   await fillLocation(
     listing.kijiji?.address ||
       formFields['postAdForm.postalCode'] ||
@@ -492,6 +560,7 @@ export const autoPostKijiji = async ({ listing, report }: KijijiAutoPostInput) =
   }
 
   selectFreePackage()
+  await ensureCorrectPrice(listing, report)
   acceptTerms()
   await delay(500)
 

@@ -228,13 +228,27 @@ const snapshotFromFormFields = (
     formFields.description ||
     formFields['pstad-descrptn'] ||
     ''
-  const price = parseKijijiPrice(
+  const priceType =
+    formFields['postAdForm.priceType'] ||
+    formFields.priceType ||
+    formFields['price.type'] ||
+    ''
+  const rawPriceAmount =
     formFields['postAdForm.priceAmount'] ||
-      formFields['price.amount'] ||
-      formFields.priceAmount ||
-      formFields.PriceAmount ||
-      formFields.price,
-  ) ?? 0
+    formFields['price.amount'] ||
+    formFields.priceAmount ||
+    formFields.PriceAmount
+  const parsedPrice = parseKijijiPrice(rawPriceAmount)
+  const price =
+    parsedPrice !== undefined && parsedPrice > 0
+      ? parsedPrice
+      : /free/i.test(priceType)
+        ? 0
+        : parsedPrice ?? 0
+  if (price > 0) {
+    remember(formFields, 'postAdForm.priceType', 'FIXED')
+    remember(formFields, 'postAdForm.priceAmount', String(price))
+  }
   const address =
     formFields['postAdForm.postalCode'] ||
     formFields['postAdForm.mapAddress'] ||
