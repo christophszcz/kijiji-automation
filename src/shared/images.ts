@@ -1,5 +1,44 @@
+import { MAX_IMAGES } from './constants'
+
 const MAX_IMAGE_DIMENSION = 1600
 const JPEG_QUALITY = 0.85
+
+const imageQualityScore = (url: string) => {
+  if (url.startsWith('data:')) return 10_000
+  const sizeMatch = /s-l(\d{2,4})/i.exec(url) || /[_\-](\d{3,4})x\d{2,4}/i.exec(url) || /\/(\d{3,4})\//.exec(url)
+  if (sizeMatch) return Number(sizeMatch[1])
+  if (/original|full|large|1600|1200|$_57|$_1\./i.test(url)) return 1600
+  if (/thumb|small|preview|$_14|$_2\./i.test(url)) return 120
+  return 500
+}
+
+const normalizeImageKey = (url: string) => {
+  if (url.startsWith('data:')) return url.slice(0, 64)
+  return url
+    .split('?')[0]
+    .replace(/s-l\d+/gi, 's-lSIZE')
+    .replace(/[_\-]\d{2,4}x\d{2,4}/gi, '_SIZE')
+    .replace(/\/\d{2,4}\//g, '/SIZE/')
+    .replace(/_\$_\d+/gi, '_$_SIZE')
+    .toLowerCase()
+}
+
+export const mergeImageLists = (...lists: Array<string[] | undefined | null>) => {
+  const bestByKey = new Map<string, string>()
+  for (const list of lists) {
+    for (const image of list ?? []) {
+      if (!image || (!image.startsWith('data:') && !/^https?:/i.test(image))) continue
+      const key = normalizeImageKey(image)
+      const existing = bestByKey.get(key)
+      if (!existing || imageQualityScore(image) > imageQualityScore(existing)) {
+        bestByKey.set(key, image)
+      }
+    }
+  }
+  return [...bestByKey.values()]
+    .sort((a, b) => imageQualityScore(b) - imageQualityScore(a))
+    .slice(0, MAX_IMAGES)
+}
 
 export const resizeImage = async (file: File): Promise<string> => {
   const bitmap = await createImageBitmap(file)

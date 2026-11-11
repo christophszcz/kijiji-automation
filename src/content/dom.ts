@@ -43,16 +43,53 @@ export const setFieldValue = (field: TextField, value: string) => {
   field.blur()
 }
 
-export const findImageInput = () =>
-  document.querySelector<HTMLInputElement>('input[type="file"][accept*="image"]') ??
-  document.querySelector<HTMLInputElement>('input[type="file"]')
+export const findImageInput = () => {
+  const candidates = [
+    ...document.querySelectorAll<HTMLInputElement>('input[type="file"][accept*="image"], input[type="file"]'),
+  ].filter((input) => !input.disabled)
+  return (
+    candidates.find((input) => /image|\*/i.test(input.accept || 'image/*')) ??
+    candidates.find((input) => isVisible(input)) ??
+    candidates[0] ??
+    null
+  )
+}
 
 export const attachImages = (input: HTMLInputElement, images: string[]) => {
+  if (images.length > 1) input.multiple = true
   const transfer = new DataTransfer()
   images.forEach((image, index) => transfer.items.add(dataUrlToFile(image, `photo-${index + 1}.jpg`)))
   input.files = transfer.files
   input.dispatchEvent(new Event('input', { bubbles: true }))
   input.dispatchEvent(new Event('change', { bubbles: true }))
+}
+
+export const attachImagesSequentially = async (
+  images: string[],
+  options: {
+    findInput?: () => HTMLInputElement | null
+    onProgress?: (index: number, total: number) => void
+    countUploaded?: () => number
+    timeoutMs?: number
+  } = {},
+) => {
+  const findInput = options.findInput ?? findImageInput
+  const countUploaded = options.countUploaded
+  const timeoutMs = options.timeoutMs ?? 15_000
+
+  for (const [index, image] of images.entries()) {
+    options.onProgress?.(index + 1, images.length)
+    const input = await waitFor(findInput, timeoutMs)
+    if (!input) throw new Error('Could not find the photo uploader')
+    const before = countUploaded?.() ?? 0
+    attachImages(input, [image])
+    if (countUploaded) {
+      await waitFor(() => (countUploaded() > before ? true : null), timeoutMs, 400)
+    } else {
+      await delay(700)
+    }
+    await delay(350)
+  }
 }
 
 export const findClickableByText = (root: ParentNode, pattern: RegExp) =>

@@ -1,4 +1,5 @@
 import { PLATFORMS } from '../shared/constants'
+import { mergeImageLists } from '../shared/images'
 import { sendMessage } from '../shared/messages'
 import type { JobContext, Listing } from '../shared/types'
 import type { Banner } from './banner'
@@ -80,11 +81,7 @@ const captureFromEditSources = async (adId: string, listing: Listing, previousUr
     address: primary.address || fromAccount?.address || fromPage?.address,
     formFields: { ...fromEditFetch?.formFields, ...primary.formFields },
     labeledFields: { ...fromEditFetch?.labeledFields, ...primary.labeledFields },
-    images:
-      (primary.images.length > 0 ? primary.images : undefined) ||
-      (fromPage?.images?.length ? fromPage.images : undefined) ||
-      fromAccount?.images ||
-      listing.images,
+    images: mergeImageLists(fromAccount?.images, fromPage?.images, listing.images, primary.images),
     url:
       primary.url ||
       fromPage?.url ||

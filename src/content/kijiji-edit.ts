@@ -1,4 +1,5 @@
 import { MAX_IMAGES } from '../shared/constants'
+import { mergeImageLists } from '../shared/images'
 import { delay, isVisible, waitFor } from './dom'
 import {
   extractKijijiAdId,
@@ -117,28 +118,61 @@ export const scrapeKijijiEditFormFromDom = () => {
       if (key) remember(attributes, key, value)
     })
 
+  const pushImage = (value?: string | null) => {
+    if (!value) return
+    value
+      .split(/[\s,]+/)
+      .map((part) => part.trim())
+      .filter((part) => /^https?:/i.test(part) || part.startsWith('data:'))
+      .forEach((url) => {
+        if (/logo|icon|avatar|sprite|placeholder|emoji|pixel|data:image\/svg/i.test(url)) return
+        if (!images.includes(url)) images.push(url)
+      })
+  }
+
   document.querySelectorAll<HTMLImageElement>('img').forEach((image) => {
-    const src = image.currentSrc || image.src
-    if (!src || !/^https?:/i.test(src)) return
-    if (/logo|icon|avatar|sprite|placeholder|emoji|pixel/i.test(src)) return
-    if (!isVisible(image) && !/kijiji|kji|i\.ebayimg|ebayimg|cas\.|img\./i.test(src)) return
-    if (!images.includes(src)) images.push(src)
+    pushImage(image.currentSrc || image.src)
+    pushImage(image.getAttribute('data-src'))
+    pushImage(image.getAttribute('data-url'))
+    pushImage(image.getAttribute('data-original'))
+    const srcset = image.getAttribute('srcset')
+    if (srcset) {
+      srcset.split(',').forEach((entry) => pushImage(entry.trim().split(/\s+/)[0]))
+    }
+  })
+
+  document.querySelectorAll<HTMLElement>('[style*="background"] , [data-testid*="image" i], [class*="photo" i], [class*="gallery" i], [class*="uploader" i]').forEach((element) => {
+    const background = /url\(["']?(https?:[^"')]+)["']?\)/i.exec(element.getAttribute('style') || '')?.[1]
+    pushImage(background)
+    pushImage(element.getAttribute('data-src'))
+    pushImage(element.getAttribute('data-url'))
+    pushImage(element.getAttribute('href'))
   })
 
   const hiddenImages =
     formFields.images ||
     formFields['postAdForm.images'] ||
     formFields['postAdForm.imageUrls'] ||
+    formFields['images[]'] ||
     ''
-  hiddenImages
-    .split(',')
-    .map((part) => part.trim())
-    .filter((part) => /^https?:/i.test(part))
-    .forEach((url) => {
-      if (!images.includes(url)) images.push(url)
-    })
+  pushImage(hiddenImages)
 
-  return { formFields, labeledFields, attributes, images: images.slice(0, MAX_IMAGES) }
+  for (const script of document.querySelectorAll('script[type="application/json"], script#__NEXT_DATA__')) {
+    const text = script.textContent || ''
+    for (const match of text.matchAll(/https?:\\\/\\\/[^"\\]+?\.(?:jpg|jpeg|png|webp)/gi)) {
+      pushImage(match[0].replace(/\\\//g, '/'))
+    }
+    for (const match of text.matchAll(/https?:\/\/[^"\\]+\.(?:jpg|jpeg|png|webp)/gi)) {
+      pushImage(match[0])
+    }
+  }
+
+  return {
+    formFields,
+    labeledFields,
+    attributes,
+    images: mergeImageLists(images).slice(0, MAX_IMAGES),
+  }
 }
 
 const parseFormFieldsFromHtml = (html: string) => {
@@ -206,7 +240,7 @@ const extractImagesFromHtml = (html: string) => {
       if (/^https?:/i.test(url) && !images.includes(url)) images.push(url)
     }
   }
-  return images.slice(0, MAX_IMAGES)
+  return mergeImageLists(images).slice(0, MAX_IMAGES)
 }
 
 const snapshotFromFormFields = (

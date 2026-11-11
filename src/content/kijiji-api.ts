@@ -1,4 +1,5 @@
 import { MAX_IMAGES } from '../shared/constants'
+import { mergeImageLists } from '../shared/images'
 import type { Listing } from '../shared/types'
 import { delay, isVisible } from './dom'
 
@@ -57,11 +58,40 @@ const collectImageUrls = (ad: Record<string, unknown>) => {
     ? ad.images.flatMap((image) => {
         if (typeof image === 'string') return [image]
         const record = asRecord(image)
-        return [asString(record?.url), asString(record?.href), asString(record?.src)].filter(Boolean)
+        return [
+          asString(record?.url),
+          asString(record?.href),
+          asString(record?.src),
+          asString(record?.thumbnailUrl),
+          asString(record?.largeUrl),
+          asString(record?.originalUrl),
+        ].filter(Boolean)
       })
     : []
-  const urls = [...(Array.isArray(ad.imageUrls) ? ad.imageUrls : []), ...nestedImages, ad.image, ad.thumbnailUrl, ad.imgUrl]
-  return [...new Set(urls.map(asString).filter((url): url is string => Boolean(url && /^https?:/i.test(url))))]
+  const pictureList = Array.isArray(ad.pictures)
+    ? ad.pictures.flatMap((picture) => {
+        if (typeof picture === 'string') return [picture]
+        const record = asRecord(picture)
+        const sizes = asRecord(record?.sizes) ?? asRecord(record?.urls)
+        return [
+          asString(record?.href),
+          asString(record?.url),
+          asString(record?.src),
+          asString(sizes?.large),
+          asString(sizes?.big),
+          asString(sizes?.normal),
+        ].filter(Boolean)
+      })
+    : []
+  const urls = [
+    ...(Array.isArray(ad.imageUrls) ? ad.imageUrls : []),
+    ...nestedImages,
+    ...pictureList,
+    ad.image,
+    ad.thumbnailUrl,
+    ad.imgUrl,
+  ]
+  return mergeImageLists(urls.map(asString).filter((url): url is string => Boolean(url)))
 }
 
 const stripHtml = (value: string) =>
@@ -544,6 +574,6 @@ export const mergeSnapshotWithListing = (listing: Listing, snapshot: KijijiAdSna
   address: snapshot.address || listing.kijiji?.address,
   formFields: { ...listing.kijiji?.formFields, ...snapshot.formFields },
   labeledFields: { ...listing.kijiji?.labeledFields, ...snapshot.labeledFields },
-  images: snapshot.images.length > 0 ? snapshot.images : listing.images,
+  images: mergeImageLists(snapshot.images, listing.images),
   url: snapshot.url,
 })

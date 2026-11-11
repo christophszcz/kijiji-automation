@@ -1,4 +1,5 @@
 import { DAY_MS, PLATFORMS } from '../shared/constants'
+import { mergeImageLists } from '../shared/images'
 import { mergeImportedAds } from '../shared/import'
 import { mapPosts, withPost } from '../shared/listing'
 import type { Message, MessageResponse } from '../shared/messages'
@@ -124,7 +125,7 @@ const saveSnapshot = async (listingId: string, platform: PlatformId, snapshot: L
       price: snapshot.price && snapshot.price > 0 ? snapshot.price : listing.price > 0 ? listing.price : (snapshot.price ?? listing.price),
       location: snapshot.location?.trim() || listing.location,
       category: snapshot.category?.trim() || listing.category,
-      images: snapshot.images && snapshot.images.length > 0 ? snapshot.images : listing.images,
+      images: mergeImageLists(snapshot.images, listing.images),
       externalIds: snapshot.externalId ? { ...listing.externalIds, [platform]: snapshot.externalId } : listing.externalIds,
       kijiji: snapshot.kijiji
         ? {

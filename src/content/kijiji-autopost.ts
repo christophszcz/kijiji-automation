@@ -1,6 +1,6 @@
 import { resolveImagesForUpload } from '../shared/images'
 import type { ItemCondition, Listing } from '../shared/types'
-import { attachImages, delay, findImageInput, findTextField, isVisible, setFieldValue, waitFor, type TextField } from './dom'
+import { attachImagesSequentially, delay, findImageInput, findTextField, isVisible, setFieldValue, waitFor, type TextField } from './dom'
 
 type StatusReporter = (text: string) => void
 
@@ -325,15 +325,28 @@ const countUploadedPhotos = () => {
 
 const uploadPhotos = async (images: string[], report: StatusReporter) => {
   if (images.length === 0) return
-  const input = await waitFor(findImageInput, FORM_TIMEOUT_MS)
-  if (!input) throw new KijijiAutoPostError('Could not find the photo uploader on Kijiji’s form')
-  report('Uploading photos…')
+  report(`Preparing ${images.length} photo${images.length === 1 ? '' : 's'}…`)
   const prepared = await resolveImagesForUpload(images)
   if (prepared.length === 0) throw new KijijiAutoPostError('Could not prepare the saved photos for upload')
-  const before = countUploadedPhotos()
-  attachImages(input, prepared)
-  const uploaded = await waitFor(() => (countUploadedPhotos() - before >= prepared.length ? true : null), PHOTO_UPLOAD_TIMEOUT_MS, 750)
-  if (!uploaded) await delay(4000)
+  const input = await waitFor(findImageInput, FORM_TIMEOUT_MS)
+  if (!input) throw new KijijiAutoPostError('Could not find the photo uploader on Kijiji’s form')
+
+  try {
+    await attachImagesSequentially(prepared, {
+      findInput: findImageInput,
+      countUploaded: countUploadedPhotos,
+      timeoutMs: Math.max(15_000, Math.floor(PHOTO_UPLOAD_TIMEOUT_MS / Math.max(prepared.length, 1))),
+      onProgress: (index, total) => report(`Uploading photo ${index} of ${total}…`),
+    })
+  } catch (error) {
+    throw new KijijiAutoPostError(error instanceof Error ? error.message : 'Photo upload failed')
+  }
+
+  const uploaded = countUploadedPhotos()
+  if (uploaded < prepared.length) {
+    report(`Uploaded ${uploaded} of ${prepared.length} photos — waiting a moment…`)
+    await delay(3000)
+  }
 }
 
 const isSelectCategoryPage = () => /select-category/i.test(location.pathname)

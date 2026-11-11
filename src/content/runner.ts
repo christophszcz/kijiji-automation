@@ -3,7 +3,7 @@ import { resolveImagesForUpload } from '../shared/images'
 import { sendMessage } from '../shared/messages'
 import type { JobContext, Listing, PlatformId } from '../shared/types'
 import { createBanner, type Banner, type FieldKey } from './banner'
-import { attachImages, delay, findImageInput, findTextField, setFieldValue } from './dom'
+import { attachImagesSequentially, delay, findImageInput, findTextField, setFieldValue } from './dom'
 import { createImportBanner } from './import-banner'
 
 const JOB_LOOKUP_ATTEMPTS = 3
@@ -82,13 +82,17 @@ const autofill = (adapter: PlatformAdapter, listing: Listing, banner: Banner) =>
       if (input) {
         isLoadingPhotos = true
         void resolveImagesForUpload(listing.images)
-          .then((images) => {
+          .then(async (images) => {
             if (images.length === 0) {
               filledKeys.add('photos')
               banner.setFieldState('photos', 'skipped')
               return
             }
-            attachImages(input, images)
+            banner.setStatus(`Uploading photo 1 of ${images.length}…`)
+            await attachImagesSequentially(images, {
+              findInput: findImageInput,
+              onProgress: (index, total) => banner.setStatus(`Uploading photo ${index} of ${total}…`),
+            })
             filledKeys.add('photos')
             banner.setFieldState('photos', 'done')
           })
