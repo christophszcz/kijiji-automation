@@ -81,6 +81,8 @@ const captureFromEditSources = async (adId: string, listing: Listing, previousUr
     address: primary.address || fromAccount?.address || fromPage?.address,
     formFields: { ...fromEditFetch?.formFields, ...primary.formFields },
     labeledFields: { ...fromEditFetch?.labeledFields, ...primary.labeledFields },
+    // Prefer Kijiji's own gallery order (account / view page / saved listing),
+    // then fill any missing photos from the edit-page scrape without reshuffling.
     images: mergeImageLists(fromAccount?.images, fromPage?.images, listing.images, primary.images),
     url:
       primary.url ||

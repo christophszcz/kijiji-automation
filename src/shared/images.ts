@@ -23,21 +23,32 @@ const normalizeImageKey = (url: string) => {
     .toLowerCase()
 }
 
+/**
+ * Merge image lists while preserving gallery order.
+ * The first list that contains an image establishes its position; later lists may
+ * only upgrade that slot to a higher-quality URL or append truly new images.
+ */
 export const mergeImageLists = (...lists: Array<string[] | undefined | null>) => {
+  const order: string[] = []
   const bestByKey = new Map<string, string>()
+
   for (const list of lists) {
     for (const image of list ?? []) {
       if (!image || (!image.startsWith('data:') && !/^https?:/i.test(image))) continue
       const key = normalizeImageKey(image)
       const existing = bestByKey.get(key)
-      if (!existing || imageQualityScore(image) > imageQualityScore(existing)) {
+      if (!existing) {
+        bestByKey.set(key, image)
+        order.push(key)
+        continue
+      }
+      if (imageQualityScore(image) > imageQualityScore(existing)) {
         bestByKey.set(key, image)
       }
     }
   }
-  return [...bestByKey.values()]
-    .sort((a, b) => imageQualityScore(b) - imageQualityScore(a))
-    .slice(0, MAX_IMAGES)
+
+  return order.map((key) => bestByKey.get(key)!).slice(0, MAX_IMAGES)
 }
 
 export const resizeImage = async (file: File): Promise<string> => {

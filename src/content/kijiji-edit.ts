@@ -118,7 +118,7 @@ export const scrapeKijijiEditFormFromDom = () => {
       if (key) remember(attributes, key, value)
     })
 
-  const pushImage = (value?: string | null) => {
+  const pushImage = (target: string[], value?: string | null) => {
     if (!value) return
     value
       .split(/[\s,]+/)
@@ -126,27 +126,47 @@ export const scrapeKijijiEditFormFromDom = () => {
       .filter((part) => /^https?:/i.test(part) || part.startsWith('data:'))
       .forEach((url) => {
         if (/logo|icon|avatar|sprite|placeholder|emoji|pixel|data:image\/svg/i.test(url)) return
-        if (!images.includes(url)) images.push(url)
+        if (!target.includes(url)) target.push(url)
       })
   }
 
-  document.querySelectorAll<HTMLImageElement>('img').forEach((image) => {
-    pushImage(image.currentSrc || image.src)
-    pushImage(image.getAttribute('data-src'))
-    pushImage(image.getAttribute('data-url'))
-    pushImage(image.getAttribute('data-original'))
+  const readImageElement = (image: HTMLImageElement, target: string[]) => {
+    pushImage(target, image.currentSrc || image.src)
+    pushImage(target, image.getAttribute('data-src'))
+    pushImage(target, image.getAttribute('data-url'))
+    pushImage(target, image.getAttribute('data-original'))
     const srcset = image.getAttribute('srcset')
     if (srcset) {
-      srcset.split(',').forEach((entry) => pushImage(entry.trim().split(/\s+/)[0]))
+      // Prefer the largest descriptor, but keep a single URL per <img> slot
+      const candidates = srcset
+        .split(',')
+        .map((entry) => {
+          const [url, size = '0'] = entry.trim().split(/\s+/)
+          return { url, size: Number.parseInt(size, 10) || 0 }
+        })
+        .filter((entry) => entry.url)
+      candidates.sort((a, b) => b.size - a.size)
+      if (candidates[0]) pushImage(target, candidates[0].url)
     }
+  }
+
+  const galleryImages: string[] = []
+  const galleryRoots = [
+    ...document.querySelectorAll<HTMLElement>(
+      '[class*="gallery" i], [class*="uploader" i], [class*="photo-list" i], [class*="image-list" i], [data-testid*="image" i], [data-testid*="photo" i]',
+    ),
+  ]
+  const galleryScope = galleryRoots.length > 0 ? galleryRoots : [document.body]
+  galleryScope.forEach((root) => {
+    root.querySelectorAll<HTMLImageElement>('img').forEach((image) => readImageElement(image, galleryImages))
   })
 
-  document.querySelectorAll<HTMLElement>('[style*="background"] , [data-testid*="image" i], [class*="photo" i], [class*="gallery" i], [class*="uploader" i]').forEach((element) => {
+  const otherImages: string[] = []
+  document.querySelectorAll<HTMLImageElement>('img').forEach((image) => readImageElement(image, otherImages))
+
+  document.querySelectorAll<HTMLElement>('[style*="background"]').forEach((element) => {
     const background = /url\(["']?(https?:[^"')]+)["']?\)/i.exec(element.getAttribute('style') || '')?.[1]
-    pushImage(background)
-    pushImage(element.getAttribute('data-src'))
-    pushImage(element.getAttribute('data-url'))
-    pushImage(element.getAttribute('href'))
+    pushImage(otherImages, background)
   })
 
   const hiddenImages =
@@ -155,23 +175,28 @@ export const scrapeKijijiEditFormFromDom = () => {
     formFields['postAdForm.imageUrls'] ||
     formFields['images[]'] ||
     ''
-  pushImage(hiddenImages)
+  const orderedHidden: string[] = []
+  pushImage(orderedHidden, hiddenImages)
 
+  const jsonImages: string[] = []
   for (const script of document.querySelectorAll('script[type="application/json"], script#__NEXT_DATA__')) {
     const text = script.textContent || ''
-    for (const match of text.matchAll(/https?:\\\/\\\/[^"\\]+?\.(?:jpg|jpeg|png|webp)/gi)) {
-      pushImage(match[0].replace(/\\\//g, '/'))
+    for (const match of text.matchAll(/"imageUrls"\s*:\s*\[([^\]]+)\]/gi)) {
+      for (const urlMatch of match[1].matchAll(/"(https?:[^"]+)"/gi)) pushImage(jsonImages, urlMatch[1])
     }
-    for (const match of text.matchAll(/https?:\/\/[^"\\]+\.(?:jpg|jpeg|png|webp)/gi)) {
-      pushImage(match[0])
+    for (const match of text.matchAll(/https?:\\\/\\\/[^"\\]+?\.(?:jpg|jpeg|png|webp)/gi)) {
+      pushImage(jsonImages, match[0].replace(/\\\//g, '/'))
     }
   }
+
+  // Keep gallery/DOM order first; only append extras from weaker sources.
+  images.push(...mergeImageLists(orderedHidden, galleryImages, jsonImages, otherImages))
 
   return {
     formFields,
     labeledFields,
     attributes,
-    images: mergeImageLists(images).slice(0, MAX_IMAGES),
+    images: images.slice(0, MAX_IMAGES),
   }
 }
 
