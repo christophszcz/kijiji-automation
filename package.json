@@ -7,19 +7,25 @@
   "scripts": {
     "build": "node build.mjs",
     "dev": "node build.mjs --watch",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "typecheck": "tsc --noEmit && ng build popup --configuration=development && ng build dashboard --configuration=development"
   },
   "devDependencies": {
+    "@angular/build": "^22.2.6",
+    "@angular/cli": "^22.2.6",
+    "@angular/compiler-cli": "^22.2.6",
     "@tailwindcss/cli": "^4.0.0",
     "@types/chrome": "^0.0.300",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.0.0",
-    "typescript": "^5.7.0"
+    "typescript": "~6.0.0"
+  },
+  "dependencies": {
+    "@angular/common": "^22.2.6",
+    "@angular/compiler": "^22.2.6",
+    "@angular/core": "^22.2.6",
+    "@angular/forms": "^22.2.6",
+    "@angular/platform-browser": "^22.2.6",
+    "rxjs": "^7.8.2",
+    "tslib": "^2.9.1"
   }
 }

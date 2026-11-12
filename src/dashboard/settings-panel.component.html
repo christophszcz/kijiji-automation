@@ -1,0 +1,66 @@
+<form (submit)="handleSubmit($event)" class="max-w-xl rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+  <h2 class="text-lg font-semibold text-slate-900">Stale listing reminders</h2>
+  <p class="mt-1 text-sm text-slate-500">
+    Listings sink in search results as they age. ListSync flags them and reminds you to refresh.
+  </p>
+
+  <div class="mt-6 flex flex-col gap-5">
+    <label class="flex items-center justify-between gap-4 text-sm text-slate-700">
+      <span>
+        <span class="block font-medium">Mark listings stale after</span>
+        <span class="text-slate-500">Days since posting or the last refresh</span>
+      </span>
+      <span class="flex items-center gap-2">
+        <input
+          type="number"
+          min="1"
+          max="60"
+          [class]="inputClass"
+          [ngModel]="draft().staleAfterDays"
+          (ngModelChange)="updateDraft({ staleAfterDays: $event })"
+          name="staleAfterDays"
+        />
+        days
+      </span>
+    </label>
+
+    <label class="flex items-center justify-between gap-4 text-sm text-slate-700">
+      <span>
+        <span class="block font-medium">Check every</span>
+        <span class="text-slate-500">How often ListSync looks for stale listings</span>
+      </span>
+      <span class="flex items-center gap-2">
+        <input
+          type="number"
+          min="1"
+          max="24"
+          [class]="inputClass"
+          [ngModel]="draft().checkIntervalHours"
+          (ngModelChange)="updateDraft({ checkIntervalHours: $event })"
+          name="checkIntervalHours"
+        />
+        hours
+      </span>
+    </label>
+
+    <label class="flex items-center justify-between gap-4 text-sm text-slate-700">
+      <span>
+        <span class="block font-medium">Desktop notifications</span>
+        <span class="text-slate-500">At most one reminder per listing per day</span>
+      </span>
+      <input
+        type="checkbox"
+        role="switch"
+        class="h-5 w-5 rounded border-slate-300 text-indigo-600"
+        [ngModel]="draft().remindersEnabled"
+        (ngModelChange)="updateDraft({ remindersEnabled: $event })"
+        name="remindersEnabled"
+      />
+    </label>
+  </div>
+
+  <div class="mt-8 flex justify-between gap-2">
+    <app-button (click)="handleCheckNow()">Check now</app-button>
+    <app-button type="submit" variant="primary">Save settings</app-button>
+  </div>
+</form>

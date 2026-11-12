@@ -1,6 +1,6 @@
 # ListSync – Kijiji & Facebook Marketplace manager
 
-Chrome extension (Manifest V3, TypeScript, React, Tailwind) for sellers who list on Kijiji and Facebook Marketplace.
+Chrome extension (Manifest V3, TypeScript, Angular 22, Tailwind) for sellers who list on Kijiji and Facebook Marketplace.
 
 - **Sync existing ads** – click **Sync my ads** to pull active listings from your Kijiji My Ads page (`/my/ads.json`) and Facebook Marketplace selling page into the dashboard.
 - **Create once, post everywhere** – write a listing in the dashboard, then publish. ListSync opens each marketplace's "post ad" page and autofills title, price, description and photos. You pick the category and click Post; ListSync detects when the ad is live and saves its URL.
@@ -17,7 +17,7 @@ npm run build      # outputs ./dist
 
 Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked** and select `dist/`.
 
-`npm run dev` rebuilds on change (reload the extension afterwards). `npm run typecheck` runs TypeScript.
+`npm run dev` rebuilds on change (reload the extension afterwards). `npm run typecheck` runs TypeScript and Angular builds.
 
 ## Project layout
 
@@ -25,12 +25,13 @@ Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked** a
 | --- | --- |
 | `src/background/` | Service worker: publish/refresh jobs, stale-check alarm, badge, notifications |
 | `src/content/` | Marketplace content scripts: form autofill, live-ad detection, on-page assistant panel |
-| `src/dashboard/` | Full-page dashboard (listings, create/edit form, settings) |
-| `src/popup/` | Toolbar popup with stats and quick refresh |
+| `src/dashboard/` | Angular 22 options-page dashboard (listings, create/edit form, settings) |
+| `src/popup/` | Angular 22 toolbar popup with stats and quick refresh |
+| `src/ui/` | Shared Angular services and UI components |
 | `src/shared/` | Types, storage, staleness logic, messaging |
 
 ## Limitations
 
 - Marketplace pages change often. Autofill finds fields by label text plus a few known selectors; if a field isn't found, the assistant panel has **Copy** buttons and a **Mark as posted** fallback.
-- Category, condition and location pickers on the marketplaces are left to you, and ListSync never submits a form on its own.
+- Category, condition and location pickers on the marketplaces are left to you on first publish; Kijiji refresh restores saved fields automatically.
 - Data is stored locally in `chrome.storage.local`; photos are resized to max 1600px JPEG.

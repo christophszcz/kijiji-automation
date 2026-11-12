@@ -1,0 +1,54 @@
+<div class="flex w-80 flex-col gap-4 bg-white p-4">
+  <header class="flex items-center gap-2">
+    <img src="icons/icon-32.png" alt="" class="h-7 w-7" />
+    <h1 class="text-base font-bold text-slate-900">ListSync</h1>
+  </header>
+
+  <div class="grid grid-cols-3 gap-2">
+    @for (item of statItems(); track item.label) {
+      <div class="rounded-lg bg-slate-50 p-2 text-center ring-1 ring-slate-200">
+        <p class="text-xl font-bold {{ item.className }}">{{ item.value }}</p>
+        <p class="text-[11px] text-slate-500">{{ item.label }}</p>
+      </div>
+    }
+  </div>
+
+  @if (staleListings().length > 0) {
+    <section aria-label="Stale listings">
+      <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700">Needs refresh</h2>
+      <ul class="flex flex-col gap-1.5">
+        @for (listing of visibleStale(); track listing.id) {
+          <li class="flex items-center gap-2 rounded-lg bg-amber-50 px-2.5 py-2">
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-medium text-slate-800">{{ listing.title }}</span>
+              <span class="text-xs text-slate-500">{{ formatPrice(listing.price) }}</span>
+            </span>
+            <app-button size="sm" variant="warning" [ariaLabel]="'Refresh ' + listing.title" (click)="handleRefresh(listing)">↻</app-button>
+          </li>
+        }
+      </ul>
+      @if (extraStaleCount() > 0) {
+        <button type="button" class="mt-1 text-xs text-indigo-700 hover:underline" (click)="handleOpenDashboard('#stale')">
+          +{{ extraStaleCount() }} more
+        </button>
+      }
+    </section>
+  } @else {
+    <p class="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+      {{ stats().total === 0 ? 'No listings yet. Sync ads from your Kijiji account.' : 'All your listings are fresh.' }}
+    </p>
+  }
+
+  @if (error()) {
+    <p class="text-xs text-red-600">{{ error() }}</p>
+  }
+
+  <app-button variant="primary" [disabled]="isSyncing()" (click)="handleSync()">
+    {{ isSyncing() ? 'Opening account pages…' : 'Sync my ads' }}
+  </app-button>
+
+  <div class="grid grid-cols-2 gap-2">
+    <app-button (click)="handleOpenDashboard()">Dashboard</app-button>
+    <app-button (click)="handleOpenDashboard('#new')">+ New listing</app-button>
+  </div>
+</div>

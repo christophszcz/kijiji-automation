@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/popup"
+  },
+  "files": ["src/popup/main.ts"],
+  "include": ["src/popup/**/*.ts", "src/ui/**/*.ts", "src/shared/**/*.ts"],
+  "exclude": ["src/background/**", "src/content/**", "src/dashboard/**", "src/**/*.spec.ts"]
+}

@@ -1,0 +1,201 @@
+<app-modal [title]="listing() ? 'Edit listing' : 'New listing'" (closed)="closed.emit()">
+  <form (submit)="handleSubmit($event)" novalidate class="flex flex-col gap-5 px-6 py-5">
+    <div>
+      <label for="title" class="mb-1 block text-sm font-medium text-slate-700">Title</label>
+      <input
+        id="title"
+        [class]="inputClass"
+        [ngModel]="draft().title"
+        (ngModelChange)="updateDraft('title', $event)"
+        name="title"
+        maxlength="100"
+        placeholder="e.g. Trek FX 2 hybrid bike – medium frame"
+        [attr.aria-invalid]="errors().title ? true : null"
+        [attr.aria-describedby]="errors().title ? 'title-error' : null"
+      />
+      @if (errors().title) {
+        <p id="title-error" class="mt-1 text-xs text-red-600">{{ errors().title }}</p>
+      }
+    </div>
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div>
+        <label for="price" class="mb-1 block text-sm font-medium text-slate-700">Price (CAD)</label>
+        <input
+          id="price"
+          type="number"
+          min="0"
+          step="1"
+          inputmode="decimal"
+          [class]="inputClass"
+          [ngModel]="draft().price"
+          (ngModelChange)="updateDraft('price', $event)"
+          name="price"
+          [attr.aria-invalid]="errors().price ? true : null"
+          [attr.aria-describedby]="errors().price ? 'price-error' : null"
+        />
+        @if (errors().price) {
+          <p id="price-error" class="mt-1 text-xs text-red-600">{{ errors().price }}</p>
+        }
+      </div>
+      <div>
+        <label for="condition" class="mb-1 block text-sm font-medium text-slate-700">Condition</label>
+        <select
+          id="condition"
+          [class]="inputClass"
+          [ngModel]="draft().condition"
+          (ngModelChange)="updateDraft('condition', $event)"
+          name="condition"
+        >
+          @for (entry of conditionEntries; track entry[0]) {
+            <option [value]="entry[0]">{{ entry[1] }}</option>
+          }
+        </select>
+      </div>
+      <div>
+        <label for="category" class="mb-1 block text-sm font-medium text-slate-700">Category</label>
+        <input
+          id="category"
+          [class]="inputClass"
+          [ngModel]="draft().category"
+          (ngModelChange)="updateDraft('category', $event)"
+          name="category"
+          placeholder="e.g. Bikes"
+        />
+      </div>
+    </div>
+
+    <div>
+      <label for="location" class="mb-1 block text-sm font-medium text-slate-700">Location</label>
+      <input
+        id="location"
+        [class]="inputClass"
+        [ngModel]="draft().location"
+        (ngModelChange)="updateDraft('location', $event)"
+        name="location"
+        placeholder="e.g. Toronto, ON"
+      />
+    </div>
+
+    <div>
+      <label for="description" class="mb-1 block text-sm font-medium text-slate-700">Description</label>
+      <textarea
+        id="description"
+        rows="5"
+        [class]="inputClass"
+        [ngModel]="draft().description"
+        (ngModelChange)="updateDraft('description', $event)"
+        name="description"
+        [attr.aria-invalid]="errors().description ? true : null"
+        [attr.aria-describedby]="errors().description ? 'description-error' : null"
+      ></textarea>
+      @if (errors().description) {
+        <p id="description-error" class="mt-1 text-xs text-red-600">{{ errors().description }}</p>
+      }
+    </div>
+
+    <fieldset>
+      <legend class="mb-2 text-sm font-medium text-slate-700">
+        Photos <span class="font-normal text-slate-500">({{ draft().images.length }}/{{ maxImages }}, first is the cover)</span>
+      </legend>
+      <div class="grid grid-cols-5 gap-2">
+        @for (image of draft().images; track $index) {
+          <div class="group relative aspect-square overflow-hidden rounded-lg ring-1 ring-slate-200">
+            <img [src]="image" [alt]="'Photo ' + ($index + 1)" class="h-full w-full object-cover" />
+            <div class="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-slate-900/60 opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100">
+              @if ($index > 0) {
+                <button type="button" class="rounded bg-white/90 px-1.5 py-0.5 text-[11px] font-medium" (click)="handleMakeCover($index)">
+                  Make cover
+                </button>
+              }
+              <button
+                type="button"
+                class="rounded bg-white/90 px-1.5 py-0.5 text-[11px] font-medium text-red-600"
+                (click)="handleRemoveImage($index)"
+                [attr.aria-label]="'Remove photo ' + ($index + 1)"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        }
+        @if (draft().images.length < maxImages) {
+          <label class="flex aspect-square cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 text-xs text-slate-500 hover:border-indigo-400 hover:text-indigo-600 focus-within:border-indigo-500">
+            <span class="text-xl">+</span>
+            {{ isProcessingImages() ? 'Processing…' : 'Add photos' }}
+            <input type="file" accept="image/*" multiple class="sr-only" (change)="handleImagesSelected($event)" [disabled]="isProcessingImages()" />
+          </label>
+        }
+      </div>
+      @if (errors().images) {
+        <p class="mt-1 text-xs text-red-600">{{ errors().images }}</p>
+      }
+    </fieldset>
+
+    <fieldset class="rounded-xl bg-slate-50 p-4">
+      <legend class="sr-only">Marketplaces</legend>
+      <p class="mb-3 text-sm font-medium text-slate-700">Marketplaces</p>
+      <div class="flex flex-col gap-3">
+        @for (platformId of platformIds; track platformId) {
+          @let postDraft = draft().posts[platformId];
+          @let isPending = listing()?.posts[platformId].status === 'pending';
+          <div class="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+            <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
+              <span class="w-40 text-sm font-medium text-slate-800">{{ platforms[platformId].label }}</span>
+              <label class="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                  [checked]="draft().publishTo.includes(platformId)"
+                  [disabled]="postDraft.isPosted || isPending"
+                  (change)="handleTogglePublish(platformId)"
+                />
+                Publish now
+              </label>
+              <label class="flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                  [checked]="postDraft.isPosted"
+                  [disabled]="isPending"
+                  (change)="updatePostDraft(platformId, { isPosted: $any($event.target).checked, postedDate: postDraft.postedDate || today })"
+                />
+                Already posted
+              </label>
+            </div>
+            @if (postDraft.isPosted) {
+              <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+                <input
+                  type="url"
+                  [class]="inputClass"
+                  placeholder="Listing URL"
+                  [attr.aria-label]="platforms[platformId].label + ' listing URL'"
+                  [ngModel]="postDraft.url"
+                  (ngModelChange)="updatePostDraft(platformId, { url: $event })"
+                  [name]="'url-' + platformId"
+                />
+                <input
+                  type="date"
+                  [class]="inputClass"
+                  [attr.aria-label]="platforms[platformId].label + ' posted date'"
+                  [ngModel]="postDraft.postedDate"
+                  (ngModelChange)="updatePostDraft(platformId, { postedDate: $event })"
+                  [name]="'date-' + platformId"
+                  [max]="today"
+                />
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </fieldset>
+
+    <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-4">
+      <app-button variant="ghost" (click)="closed.emit()">Cancel</app-button>
+      <app-button [disabled]="isSaving() || isProcessingImages()" (click)="submit(false)">Save</app-button>
+      <app-button type="submit" variant="primary" [disabled]="isSaving() || isProcessingImages() || draft().publishTo.length === 0">
+        Save & publish @if (draft().publishTo.length > 0) { ({{ draft().publishTo.length }}) }
+      </app-button>
+    </div>
+  </form>
+</app-modal>
