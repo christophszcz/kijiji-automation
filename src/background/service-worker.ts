@@ -135,6 +135,10 @@ const saveSnapshot = async (listingId: string, platform: PlatformId, snapshot: L
             attributes: { ...listing.kijiji?.attributes, ...snapshot.kijiji.attributes },
             formFields: { ...listing.kijiji?.formFields, ...snapshot.kijiji.formFields },
             labeledFields: { ...listing.kijiji?.labeledFields, ...snapshot.kijiji.labeledFields },
+            tags:
+              snapshot.kijiji.tags && snapshot.kijiji.tags.length > 0
+                ? snapshot.kijiji.tags
+                : listing.kijiji?.tags,
           }
         : listing.kijiji,
       posts: {

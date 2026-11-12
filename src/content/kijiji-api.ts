@@ -2,6 +2,7 @@ import { MAX_IMAGES } from '../shared/constants'
 import { mergeImageLists } from '../shared/images'
 import type { Listing } from '../shared/types'
 import { delay, isVisible } from './dom'
+import { parseKijijiTags, scrapeKijijiTagsFromHtml, tagsFromFormFields } from './kijiji-tags'
 
 const AD_ID_PATTERN = /(\d{8,})/
 const PRICE_PATTERN = /(?:CA\$|C\$|\$)\s*([\d,]+(?:\.\d{1,2})?)/i
@@ -18,6 +19,7 @@ export interface KijijiAdSnapshot {
   address?: string
   formFields?: Record<string, string>
   labeledFields?: Record<string, string>
+  tags?: string[]
   images: string[]
   url: string
 }
@@ -198,6 +200,12 @@ const adRecordToSnapshot = (raw: unknown, fallbackUrl?: string): KijijiAdSnapsho
     categoryId: String(ad.categoryId ?? asRecord(ad.category)?.id ?? '') || undefined,
     attributes: extractAttributes(ad),
     address: asString(location?.address) || asString(ad.address) || asString(ad.postalCode) || undefined,
+    tags: parseKijijiTags(
+      Array.isArray(ad.tags) ? ad.tags.map((tag) => asString(tag) ?? '').filter(Boolean) : asString(ad.tags),
+      Array.isArray(ad.keywords) ? ad.keywords.map((tag) => asString(tag) ?? '').filter(Boolean) : asString(ad.keywords),
+      asString(asRecord(ad.attributeMap)?.tags_s),
+      asString(asRecord(ad.attributes)?.tags_s),
+    ),
     images: collectImageUrls(ad).slice(0, MAX_IMAGES),
     url,
   }
@@ -231,6 +239,7 @@ const extractSnapshotFromHtml = (html: string, adId: string, pageUrl: string): K
           return {
             ...snapshot,
             attributes: { ...htmlAttributes, ...snapshot.attributes },
+            tags: parseKijijiTags(snapshot.tags, scrapeKijijiTagsFromHtml(html), tagsFromFormFields({}, htmlAttributes)),
           }
         }
       } catch {
@@ -256,6 +265,7 @@ const extractSnapshotFromHtml = (html: string, adId: string, pageUrl: string): K
     location: '',
     category: '',
     attributes: extractAttributesFromHtml(html),
+    tags: scrapeKijijiTagsFromHtml(html),
     images: images.filter((url) => /^https?:/i.test(url)).slice(0, MAX_IMAGES),
     url: pageUrl,
   }
@@ -574,6 +584,7 @@ export const mergeSnapshotWithListing = (listing: Listing, snapshot: KijijiAdSna
   address: snapshot.address || listing.kijiji?.address,
   formFields: { ...listing.kijiji?.formFields, ...snapshot.formFields },
   labeledFields: { ...listing.kijiji?.labeledFields, ...snapshot.labeledFields },
+  tags: parseKijijiTags(snapshot.tags, listing.kijiji?.tags),
   images: mergeImageLists(snapshot.images, listing.images),
   url: snapshot.url,
 })

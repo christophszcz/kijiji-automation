@@ -19,6 +19,7 @@ import {
   getKijijiEditUrl,
   isKijijiEditPage,
 } from './kijiji-edit'
+import { parseKijijiTags } from './kijiji-tags'
 import type { RefreshOutcome } from './runner'
 
 const deletedKey = (jobId: string) => `listsync:kijiji-deleted:${jobId}`
@@ -48,6 +49,7 @@ const toListingSnapshot = (snapshot: KijijiAdSnapshot) => ({
     address: snapshot.address,
     formFields: snapshot.formFields,
     labeledFields: snapshot.labeledFields,
+    tags: snapshot.tags,
   },
 })
 
@@ -81,6 +83,7 @@ const captureFromEditSources = async (adId: string, listing: Listing, previousUr
     address: primary.address || fromAccount?.address || fromPage?.address,
     formFields: { ...fromEditFetch?.formFields, ...primary.formFields },
     labeledFields: { ...fromEditFetch?.labeledFields, ...primary.labeledFields },
+    tags: parseKijijiTags(primary.tags, fromEditFetch?.tags, fromAccount?.tags, fromPage?.tags, listing.kijiji?.tags),
     // Prefer Kijiji's own gallery order (account / view page / saved listing),
     // then fill any missing photos from the edit-page scrape without reshuffling.
     images: mergeImageLists(fromAccount?.images, fromPage?.images, listing.images, primary.images),

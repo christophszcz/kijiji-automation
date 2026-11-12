@@ -7,6 +7,7 @@ import {
   parseKijijiPrice,
   type KijijiAdSnapshot,
 } from './kijiji-api'
+import { parseKijijiTags, scrapeKijijiTagsFromDom, scrapeKijijiTagsFromHtml, tagsFromFormFields } from './kijiji-tags'
 
 const EDIT_FORM_TIMEOUT_MS = 45_000
 const SKIP_FIELD_NAMES = /xsrf|csrf|fraud|token|password|submittype|adid|^file$|uuid|galleryimageindex/i
@@ -191,11 +192,13 @@ export const scrapeKijijiEditFormFromDom = () => {
 
   // Keep gallery/DOM order first; only append extras from weaker sources.
   images.push(...mergeImageLists(orderedHidden, galleryImages, jsonImages, otherImages))
+  const tags = parseKijijiTags(scrapeKijijiTagsFromDom(), tagsFromFormFields(formFields, attributes))
 
   return {
     formFields,
     labeledFields,
     attributes,
+    tags,
     images: images.slice(0, MAX_IMAGES),
   }
 }
@@ -275,6 +278,7 @@ const snapshotFromFormFields = (
   attributes: Record<string, string>,
   labeledFields: Record<string, string>,
   images: string[],
+  tags: string[] = [],
 ): KijijiAdSnapshot => {
   const title =
     formFields['postAdForm.title'] ||
@@ -325,6 +329,11 @@ const snapshotFromFormFields = (
     formFields.categoryId ||
     formFields['postAdForm.categoryId'] ||
     formFields['category.id']
+  const resolvedTags = parseKijijiTags(tags, tagsFromFormFields(formFields, attributes))
+  if (resolvedTags.length > 0) {
+    remember(formFields, 'postAdForm.tags', resolvedTags.join(','))
+    remember(attributes, 'tags_s', resolvedTags.join(','))
+  }
 
   return {
     externalId: adId,
@@ -338,6 +347,7 @@ const snapshotFromFormFields = (
     address: address || undefined,
     formFields,
     labeledFields,
+    tags: resolvedTags,
     images,
     url: pageUrl.includes('edit') ? `https://www.kijiji.ca/v-view-details.html?adId=${adId}` : pageUrl,
   }
@@ -351,7 +361,8 @@ export const fetchKijijiAdFromEditPage = async (adId: string): Promise<KijijiAdS
   if (/sign.?in|log.?in|create an account/i.test(html) && !/postAdForm|pstad|attributeMap/i.test(html)) return null
   const { formFields, attributes } = parseFormFieldsFromHtml(html)
   const images = extractImagesFromHtml(html)
-  const snapshot = snapshotFromFormFields(adId, response.url || pageUrl, formFields, attributes, {}, images)
+  const tags = scrapeKijijiTagsFromHtml(html)
+  const snapshot = snapshotFromFormFields(adId, response.url || pageUrl, formFields, attributes, {}, images, tags)
   if (!snapshot.title && Object.keys(formFields).length === 0) return null
   return snapshot
 }
@@ -381,6 +392,7 @@ export const captureKijijiEditPageSnapshot = async (adId: string, pageUrl = loca
     scraped.attributes,
     scraped.labeledFields,
     scraped.images,
+    scraped.tags,
   )
   if (!snapshot.title) throw new Error('Could not read the title from Kijiji’s edit-ad page')
   if (snapshot.description.length < 5) throw new Error('Could not read the description from Kijiji’s edit-ad page')

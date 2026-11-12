@@ -1,6 +1,7 @@
 import { resolveImagesForUpload } from '../shared/images'
 import type { ItemCondition, Listing } from '../shared/types'
 import { attachImagesSequentially, delay, findImageInput, findTextField, isVisible, setFieldValue, waitFor, type TextField } from './dom'
+import { fillKijijiTags, parseKijijiTags, tagsFromFormFields } from './kijiji-tags'
 
 type StatusReporter = (text: string) => void
 
@@ -413,6 +414,7 @@ const applyNamedFormFields = async (formFields: Record<string, string>, listing:
       continue
     }
     if (/featurePackage|featuresForm/i.test(name)) continue
+    if (/tags?|keywords?/i.test(name)) continue
 
     const field = findFieldByName(name)
     if (!field) {
@@ -565,6 +567,13 @@ export const autoPostKijiji = async ({ listing, report }: KijijiAutoPostInput) =
       formFields.postalCode,
   )
   await uploadPhotos(listing.images, report)
+
+  const tags = parseKijijiTags(
+    listing.kijiji?.tags,
+    tagsFromFormFields(formFields, listing.kijiji?.attributes ?? {}),
+  )
+  if (tags.length > 0) await fillKijijiTags(tags, report)
+
   await fillUnsetDropdowns(listing, report)
 
   const leftover = stillUnsetRequired()
@@ -574,6 +583,7 @@ export const autoPostKijiji = async ({ listing, report }: KijijiAutoPostInput) =
 
   selectFreePackage()
   await ensureCorrectPrice(listing, report)
+  if (tags.length > 0) await fillKijijiTags(tags, report)
   acceptTerms()
   await delay(500)
 

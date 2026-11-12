@@ -79,6 +79,7 @@ export interface KijijiDetails {
   categoryId?: string
   attributes?: Record<string, string>
   address?: string
+  tags?: string[]
   formFields?: Record<string, string>
   labeledFields?: Record<string, string>
 }
