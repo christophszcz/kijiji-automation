@@ -20,12 +20,16 @@ const findMatchingListing = (listings: Listing[], ad: ImportedAd) => {
 
 export const createListingFromImport = (ad: ImportedAd): Listing => {
   const now = Date.now()
+  const postedAt = ad.postedAt ?? now
   const posts = createEmptyPosts()
   posts[ad.platform] = {
     platform: ad.platform,
     status: 'posted',
     url: ad.url,
-    postedAt: ad.postedAt ?? now,
+    originalPostedAt: postedAt,
+    postedAt,
+    views: ad.views,
+    searchPage: ad.searchPage,
   }
   return {
     id: crypto.randomUUID(),
@@ -77,9 +81,12 @@ export const mergeImportedAds = (
           platform: ad.platform,
           status: 'posted',
           url: ad.url,
+          originalPostedAt: existingPost.originalPostedAt ?? existingPost.postedAt ?? ad.postedAt,
           postedAt: existingPost.postedAt ?? ad.postedAt ?? Date.now(),
           lastRefreshedAt: existingPost.lastRefreshedAt,
           lastRemindedAt: existingPost.lastRemindedAt,
+          views: ad.views ?? existingPost.views,
+          searchPage: ad.searchPage ?? existingPost.searchPage,
         },
       },
       updatedAt: Date.now(),

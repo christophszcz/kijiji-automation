@@ -21,9 +21,16 @@ export interface PlatformPost {
   platform: PlatformId
   status: PostStatus
   url?: string
+  /** First known post time on the marketplace (preserved across refreshes). */
+  originalPostedAt?: number
   postedAt?: number
+  /** Most recent successful refresh/repost time. */
   lastRefreshedAt?: number
   lastRemindedAt?: number
+  /** Marketplace view/visit count when last synced. */
+  views?: number
+  /** Search-results page the ad currently appears on (Kijiji “Page”). */
+  searchPage?: number
   error?: string
 }
 
@@ -57,6 +64,8 @@ export interface ImportedAd {
   imageUrls?: string[]
   url: string
   postedAt?: number
+  views?: number
+  searchPage?: number
 }
 
 export interface ImportSummary {

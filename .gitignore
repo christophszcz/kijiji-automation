@@ -2,3 +2,4 @@ node_modules
 dist
 dist-angular
 *.zip
+todo.txt

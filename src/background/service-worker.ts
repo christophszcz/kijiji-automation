@@ -214,14 +214,19 @@ const completeJob = async (tabId: number | undefined, result: JobResultMessage) 
   const now = Date.now()
   await updateListing(job.listingId, (listing) => {
     const post = listing.posts[job.platform]
-    const isRefresh = job.type === 'refresh' && post.postedAt !== undefined
+    const isRefresh = job.type === 'refresh' && (post.postedAt !== undefined || post.originalPostedAt !== undefined)
+    const originalPostedAt = post.originalPostedAt ?? post.postedAt ?? (isRefresh ? undefined : now)
     return {
       ...withPost(listing, job.platform, {
         platform: job.platform,
         status: 'posted',
         url: result.url,
-        postedAt: isRefresh ? post.postedAt : now,
+        originalPostedAt: originalPostedAt ?? now,
+        postedAt: isRefresh ? (post.postedAt ?? originalPostedAt ?? now) : now,
         lastRefreshedAt: isRefresh ? now : undefined,
+        views: isRefresh ? 0 : post.views,
+        searchPage: isRefresh ? 1 : post.searchPage,
+        lastRemindedAt: post.lastRemindedAt,
       }),
       snoozedUntil: undefined,
     }

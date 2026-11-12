@@ -76,11 +76,16 @@ const draftToListing = (draft: ListingDraft, existing: Listing | null): Listing 
     if (post.status === 'pending') return post
     if (!postDraft.isPosted) return post.status === 'posted' ? { platform: post.platform, status: 'not_posted' } : post
     const isDateUnchanged = postDraft.postedDate === toDateInput(post.postedAt)
+    const nextPostedAt = isDateUnchanged && post.postedAt ? post.postedAt : fromDateInput(postDraft.postedDate)
     return {
       ...post,
       status: 'posted',
       url: postDraft.url.trim() || undefined,
-      postedAt: isDateUnchanged && post.postedAt ? post.postedAt : fromDateInput(postDraft.postedDate),
+      originalPostedAt: post.originalPostedAt ?? nextPostedAt,
+      postedAt: nextPostedAt,
+      views: post.views,
+      searchPage: post.searchPage,
+      lastRefreshedAt: post.lastRefreshedAt,
       error: undefined,
     }
   })

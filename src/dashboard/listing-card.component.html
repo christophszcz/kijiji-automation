@@ -2,9 +2,9 @@
   [class]="'flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ' + (isStale() ? 'ring-amber-300' : 'ring-slate-200')"
   [attr.aria-label]="listing().title"
 >
-  <div class="relative aspect-[4/3] bg-slate-100">
+  <div class="relative h-48 w-full shrink-0 overflow-hidden bg-slate-100 sm:h-52">
     @if (coverImage()) {
-      <img [src]="coverImage()" [alt]="listing().title" class="h-full w-full object-cover" loading="lazy" />
+      <img [src]="coverImage()" [alt]="listing().title" class="absolute inset-0 h-full w-full object-cover" loading="lazy" />
     } @else {
       <div class="flex h-full items-center justify-center text-sm text-slate-400">No photo</div>
     }
@@ -25,6 +25,26 @@
         <span class="shrink-0 font-semibold text-indigo-700">{{ formatPrice(listing().price) }}</span>
       </div>
       <p class="mt-1 text-xs text-slate-500">{{ metaLine() }}</p>
+      @if (kijijiStats(); as stats) {
+        <dl class="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 rounded-lg bg-slate-50 px-2.5 py-2 text-[11px] text-slate-600" aria-label="Kijiji ad stats">
+          <div>
+            <dt class="font-medium text-slate-500">Originally posted</dt>
+            <dd class="text-slate-800">{{ stats.originalPostedAt ? formatDateTime(stats.originalPostedAt) : '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Date reposted</dt>
+            <dd class="text-slate-800">{{ stats.repostedAt ? formatDateTime(stats.repostedAt) : 'Not yet' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Views</dt>
+            <dd class="text-slate-800">{{ stats.views !== undefined ? stats.views : '—' }}</dd>
+          </div>
+          <div>
+            <dt class="font-medium text-slate-500">Search page</dt>
+            <dd class="text-slate-800">{{ stats.searchPage !== undefined ? 'Page ' + stats.searchPage : '—' }}</dd>
+          </div>
+        </dl>
+      }
     </div>
 
     <ul class="flex flex-col gap-2" aria-label="Marketplace status">

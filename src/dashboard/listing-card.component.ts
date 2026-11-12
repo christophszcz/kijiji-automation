@@ -1,6 +1,6 @@
 import { Component, computed, input, output } from '@angular/core'
 import { CONDITION_LABELS, PLATFORM_IDS, PLATFORMS } from '../shared/constants'
-import { formatDate, formatPrice } from '../shared/format'
+import { formatDate, formatDateTime, formatPrice } from '../shared/format'
 import { getPostedPlatforms, getUnpostedPlatforms } from '../shared/listing'
 import { formatAge, getPostAgeMs, isListingStale, isPostStale, isSnoozed } from '../shared/stale'
 import type { Listing, PlatformId, Settings } from '../shared/types'
@@ -29,6 +29,7 @@ export class ListingCardComponent {
   readonly platforms = PLATFORMS
   readonly formatPrice = formatPrice
   readonly formatDate = formatDate
+  readonly formatDateTime = formatDateTime
   readonly formatAge = formatAge
   readonly getPostAgeMs = getPostAgeMs
 
@@ -40,6 +41,21 @@ export class ListingCardComponent {
   readonly metaLine = computed(() =>
     [CONDITION_LABELS[this.listing().condition], this.listing().category, this.listing().location].filter(Boolean).join(' · '),
   )
+  readonly kijijiPost = computed(() => {
+    const post = this.listing().posts.kijiji
+    return post.status === 'posted' || post.status === 'pending' || post.status === 'failed' ? post : null
+  })
+  readonly kijijiStats = computed(() => {
+    const post = this.kijijiPost()
+    if (!post) return null
+    const original = post.originalPostedAt ?? post.postedAt
+    return {
+      originalPostedAt: original,
+      repostedAt: post.lastRefreshedAt,
+      views: post.views,
+      searchPage: post.searchPage,
+    }
+  })
 
   isPostStaleNow(platformId: PlatformId) {
     return isPostStale(this.listing().posts[platformId], this.settings(), this.now())
