@@ -14,6 +14,13 @@ const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
 @Component({
   selector: 'app-button',
   standalone: true,
+  styles: [
+    `
+      :host {
+        display: contents;
+      }
+    `,
+  ],
   template: `
     <button
       [attr.type]="type()"

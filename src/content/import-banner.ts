@@ -16,8 +16,12 @@ export const createImportBanner = (title: string, initialStatus = 'Looking for y
   host.style.all = 'initial'
   host.style.position = 'fixed'
   host.style.zIndex = '2147483647'
-  host.style.right = '16px'
-  host.style.bottom = '16px'
+  host.style.left = '12px'
+  host.style.right = '12px'
+  host.style.bottom = '12px'
+  host.style.width = 'auto'
+  host.style.maxWidth = '20rem'
+  host.style.marginLeft = 'auto'
   const shadow = host.attachShadow({ mode: 'open' })
   shadow.append(Object.assign(document.createElement('link'), { rel: 'stylesheet', href: chrome.runtime.getURL('styles.css') }))
 
@@ -27,7 +31,7 @@ export const createImportBanner = (title: string, initialStatus = 'Looking for y
   })
 
   const panel = Object.assign(document.createElement('section'), {
-    className: 'w-80 overflow-hidden rounded-xl bg-white font-sans shadow-2xl ring-1 ring-slate-900/10',
+    className: 'w-full overflow-hidden rounded-xl bg-white font-sans shadow-2xl ring-1 ring-slate-900/10',
   })
   panel.setAttribute('aria-label', 'ListSync import')
 

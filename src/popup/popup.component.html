@@ -1,6 +1,6 @@
-<div class="flex w-80 flex-col gap-4 bg-white p-4">
+<div class="flex w-full max-w-80 flex-col gap-4 bg-white p-4">
   <header class="flex items-center gap-2">
-    <img src="icons/icon-32.png" alt="" class="h-7 w-7" />
+    <img src="icons/icon-32.png" alt="" class="h-7 w-7 shrink-0" />
     <h1 class="text-base font-bold text-slate-900">ListSync</h1>
   </header>
 
@@ -8,14 +8,14 @@
     @for (item of statItems(); track item.label) {
       <div class="rounded-lg bg-slate-50 p-2 text-center ring-1 ring-slate-200">
         <p class="text-xl font-bold {{ item.className }}">{{ item.value }}</p>
-        <p class="text-[11px] text-slate-500">{{ item.label }}</p>
+        <p class="text-[11px] leading-tight text-slate-500">{{ item.label }}</p>
       </div>
     }
   </div>
 
   @if (staleListings().length > 0) {
     <section aria-label="Stale listings">
-      <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700">Needs refresh</h2>
+      <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700">Stale</h2>
       <ul class="flex flex-col gap-1.5">
         @for (listing of visibleStale(); track listing.id) {
           <li class="flex items-center gap-2 rounded-lg bg-amber-50 px-2.5 py-2">
@@ -43,12 +43,9 @@
     <p class="text-xs text-red-600">{{ error() }}</p>
   }
 
-  <app-button variant="primary" [disabled]="isSyncing()" (click)="handleSync()">
+  <app-button className="w-full" variant="primary" [disabled]="isSyncing()" (click)="handleSync()">
     {{ isSyncing() ? 'Opening account pages…' : 'Sync my ads' }}
   </app-button>
 
-  <div class="grid grid-cols-2 gap-2">
-    <app-button (click)="handleOpenDashboard()">Dashboard</app-button>
-    <app-button (click)="handleOpenDashboard('#new')">+ New listing</app-button>
-  </div>
+  <app-button className="w-full" (click)="handleOpenDashboard()">Dashboard</app-button>
 </div>

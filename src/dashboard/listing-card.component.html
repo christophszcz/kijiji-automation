@@ -2,14 +2,14 @@
   [class]="'flex flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ' + (isStale() ? 'ring-amber-300' : 'ring-slate-200')"
   [attr.aria-label]="listing().title"
 >
-  <div class="relative h-48 w-full shrink-0 overflow-hidden bg-slate-100 sm:h-52">
+  <div class="relative aspect-[4/3] w-full shrink-0 overflow-hidden bg-slate-100 sm:aspect-auto sm:h-52">
     @if (coverImage()) {
       <img [src]="coverImage()" [alt]="listing().title" class="absolute inset-0 h-full w-full object-cover" loading="lazy" />
     } @else {
       <div class="flex h-full items-center justify-center text-sm text-slate-400">No photo</div>
     }
     @if (isStale()) {
-      <span class="absolute left-3 top-3 rounded-full bg-amber-500 px-2.5 py-1 text-xs font-semibold text-white shadow">Needs refresh</span>
+      <span class="absolute left-3 top-3 rounded-full bg-amber-500 px-2.5 py-1 text-xs font-semibold text-white shadow">Stale</span>
     }
     @if (isSnoozedNow() && listing().snoozedUntil) {
       <span class="absolute left-3 top-3 rounded-full bg-slate-700/80 px-2.5 py-1 text-xs font-medium text-white">
@@ -25,86 +25,116 @@
         <span class="shrink-0 font-semibold text-indigo-700">{{ formatPrice(listing().price) }}</span>
       </div>
       <p class="mt-1 text-xs text-slate-500">{{ metaLine() }}</p>
-      @if (kijijiStats(); as stats) {
-        <dl class="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 rounded-lg bg-slate-50 px-2.5 py-2 text-[11px] text-slate-600" aria-label="Kijiji ad stats">
-          <div>
-            <dt class="font-medium text-slate-500">Originally posted</dt>
-            <dd class="text-slate-800">{{ stats.originalPostedAt ? formatDateTime(stats.originalPostedAt) : '—' }}</dd>
-          </div>
-          <div>
-            <dt class="font-medium text-slate-500">Date Refreshed</dt>
-            <dd class="text-slate-800">{{ stats.repostedAt ? formatDateTime(stats.repostedAt) : 'Not yet' }}</dd>
-          </div>
-          <div>
-            <dt class="font-medium text-slate-500">Views</dt>
-            <dd class="text-slate-800">{{ stats.views !== undefined ? stats.views : '—' }}</dd>
-          </div>
-          <div>
-            <dt class="font-medium text-slate-500">Kijiji Page</dt>
-            <dd class="text-slate-800">{{ stats.searchPage !== undefined ? 'Page ' + stats.searchPage : '—' }}</dd>
-          </div>
-        </dl>
-      }
     </div>
 
-    <ul class="flex flex-col gap-2" aria-label="Marketplace status">
-      @for (platformId of platformIds; track platformId) {
-        @let post = listing().posts[platformId];
-        <li class="flex items-center gap-2 rounded-lg bg-slate-50 px-2.5 py-2 text-sm">
-          <app-platform-badge [platform]="platformId" />
-          <app-status-pill [status]="post.status" [isStale]="isPostStaleNow(platformId)" />
-          <span class="min-w-0 flex-1 truncate text-xs text-slate-500" [title]="post.error || ''">
-            @if (post.status === 'posted') {
-              {{ post.lastRefreshedAt ? 'refreshed ' + formatAge(getPostAgeMs(post, now())) : 'posted ' + formatAge(getPostAgeMs(post, now())) }}
-            }
-            @if (post.status === 'failed') {
-              {{ post.error }}
-            }
-          </span>
-          @if (post.url) {
+    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2" aria-label="Marketplace status">
+      <section
+        class="flex flex-col gap-2 rounded-xl bg-slate-50 p-3 ring-1 ring-slate-200"
+        [attr.aria-label]="platforms.kijiji.label"
+      >
+        <div class="flex flex-wrap items-center gap-2">
+          <app-platform-badge platform="kijiji" />
+          <app-status-pill [status]="kijijiPost().status" [isStale]="isPostStaleNow('kijiji')" />
+          @if (kijijiPost().status === 'failed' && kijijiPost().error) {
+            <span class="min-w-0 flex-1 truncate text-xs text-red-600" [title]="kijijiPost().error">{{ kijijiPost().error }}</span>
+          }
+        </div>
+
+        @if (kijijiStats(); as stats) {
+          <dl class="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-slate-600" aria-label="Kijiji ad stats">
+            <div>
+              <dt class="font-medium text-slate-500">Originally posted</dt>
+              <dd class="text-slate-800">{{ stats.originalPostedAt ? formatDateTime(stats.originalPostedAt) : '—' }}</dd>
+            </div>
+            <div>
+              <dt class="font-medium text-slate-500">Date refreshed</dt>
+              <dd class="text-slate-800">{{ stats.repostedAt ? formatDateTime(stats.repostedAt) : 'Not yet' }}</dd>
+            </div>
+            <div>
+              <dt class="font-medium text-slate-500">Views</dt>
+              <dd class="text-slate-800">{{ stats.views !== undefined ? stats.views : '—' }}</dd>
+            </div>
+            <div>
+              <dt class="font-medium text-slate-500">Kijiji page</dt>
+              <dd class="text-slate-800">{{ stats.searchPage !== undefined ? 'Page ' + stats.searchPage : '—' }}</dd>
+            </div>
+          </dl>
+        } @else {
+          <p class="text-xs text-slate-500">Not posted to Kijiji yet.</p>
+        }
+
+        <div class="mt-auto flex flex-wrap items-center gap-2 pt-1">
+          @if (kijijiPost().url) {
             <a
-              [href]="post.url"
+              [href]="kijijiPost().url"
               target="_blank"
               rel="noopener noreferrer"
               class="text-xs font-medium text-indigo-700 hover:underline"
-              [attr.aria-label]="'View on ' + platforms[platformId].label"
+              [attr.aria-label]="'View on ' + platforms.kijiji.label"
             >
               View
             </a>
           }
-          @if (post.status === 'not_posted' || post.status === 'failed' || post.status === 'posted') {
+          <span class="flex-1"></span>
+          @if (kijijiPost().status === 'posted') {
             <app-button
               size="sm"
-              variant="ghost"
-              [ariaLabel]="(post.status === 'posted' ? 'Refresh' : 'Post') + ' on ' + platforms[platformId].label"
-              (click)="handlePlatformAction(platformId)"
+              [variant]="isStale() ? 'warning' : 'primary'"
+              [ariaLabel]="'Refresh on ' + platforms.kijiji.label"
+              (click)="handlePlatformAction('kijiji')"
             >
-              {{ post.status === 'posted' ? 'Refresh' : 'Post' }}
+              ↻ Refresh
+            </app-button>
+          } @else if (kijijiPost().status === 'not_posted' || kijijiPost().status === 'failed') {
+            <app-button
+              size="sm"
+              variant="primary"
+              [ariaLabel]="'Post on ' + platforms.kijiji.label"
+              (click)="handlePlatformAction('kijiji')"
+            >
+              Post
             </app-button>
           }
-        </li>
-      }
-    </ul>
+        </div>
+      </section>
 
-    <div class="mt-auto flex flex-wrap items-center gap-2 pt-1">
-      @if (postedPlatforms().length > 0) {
-        <app-button [variant]="isStale() ? 'warning' : 'primary'" size="sm" (click)="refresh.emit({ listing: listing() })">↻ Refresh</app-button>
-      }
-      @if (unpostedPlatforms().length > 0) {
-        <app-button
-          [variant]="postedPlatforms().length > 0 ? 'secondary' : 'primary'"
-          size="sm"
-          (click)="publish.emit({ listing: listing(), platforms: unpostedPlatforms() })"
-        >
-          {{ publishLabel() }}
-        </app-button>
-      }
-      @if (isStale()) {
-        <app-button variant="ghost" size="sm" (click)="snooze.emit(listing())">Snooze 1d</app-button>
-      }
-      <span class="flex-1"></span>
-      <app-button variant="ghost" size="sm" [ariaLabel]="'Edit ' + listing().title" (click)="edit.emit(listing())">Edit</app-button>
-      <app-button variant="danger" size="sm" [ariaLabel]="'Delete ' + listing().title" (click)="deleted.emit(listing())">Delete</app-button>
+      <section
+        class="relative flex flex-col justify-center gap-2 rounded-xl bg-slate-100/80 p-3 ring-1 ring-slate-200 grayscale"
+        aria-label="Facebook Marketplace — coming soon"
+        aria-disabled="true"
+      >
+        <div class="pointer-events-none select-none opacity-50">
+          <div class="flex flex-wrap items-center gap-2">
+            <app-platform-badge platform="facebook" />
+            <span class="inline-flex rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-500">Coming soon</span>
+          </div>
+          <dl class="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px] text-slate-500" aria-hidden="true">
+            <div>
+              <dt class="font-medium">Posted</dt>
+              <dd>—</dd>
+            </div>
+            <div>
+              <dt class="font-medium">Refreshed</dt>
+              <dd>—</dd>
+            </div>
+            <div>
+              <dt class="font-medium">Views</dt>
+              <dd>—</dd>
+            </div>
+            <div>
+              <dt class="font-medium">Reach</dt>
+              <dd>—</dd>
+            </div>
+          </dl>
+        </div>
+        <p class="text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Coming soon</p>
+      </section>
     </div>
+
+    @if (isStale() && kijijiPost().status === 'posted') {
+      <div class="mt-auto flex flex-wrap items-center gap-2 pt-1">
+        <app-button variant="ghost" size="sm" (click)="snooze.emit(listing())">Snooze 1d</app-button>
+      </div>
+    }
   </div>
 </article>

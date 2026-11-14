@@ -1,7 +1,6 @@
 import { Component, computed, input, output } from '@angular/core'
-import { CONDITION_LABELS, PLATFORM_IDS, PLATFORMS } from '../shared/constants'
+import { CONDITION_LABELS, PLATFORMS } from '../shared/constants'
 import { formatDate, formatDateTime, formatPrice } from '../shared/format'
-import { getPostedPlatforms, getUnpostedPlatforms } from '../shared/listing'
 import { formatAge, getPostAgeMs, isListingStale, isPostStale, isSnoozed } from '../shared/stale'
 import type { Listing, PlatformId, Settings } from '../shared/types'
 import { ButtonComponent } from '../ui/button.component'
@@ -19,13 +18,10 @@ export class ListingCardComponent {
   readonly settings = input.required<Settings>()
   readonly now = input.required<number>()
 
-  readonly edit = output<Listing>()
-  readonly deleted = output<Listing>()
   readonly publish = output<{ listing: Listing; platforms: PlatformId[] }>()
   readonly refresh = output<{ listing: Listing; platforms?: PlatformId[] }>()
   readonly snooze = output<Listing>()
 
-  readonly platformIds = PLATFORM_IDS
   readonly platforms = PLATFORMS
   readonly formatPrice = formatPrice
   readonly formatDate = formatDate
@@ -34,23 +30,17 @@ export class ListingCardComponent {
   readonly getPostAgeMs = getPostAgeMs
 
   readonly isStale = computed(() => isListingStale(this.listing(), this.settings(), this.now()))
-  readonly unpostedPlatforms = computed(() => getUnpostedPlatforms(this.listing()))
-  readonly postedPlatforms = computed(() => getPostedPlatforms(this.listing()))
   readonly coverImage = computed(() => this.listing().images[0])
   readonly isSnoozedNow = computed(() => isSnoozed(this.listing(), this.now()))
   readonly metaLine = computed(() =>
     [CONDITION_LABELS[this.listing().condition], this.listing().category, this.listing().location].filter(Boolean).join(' · '),
   )
-  readonly kijijiPost = computed(() => {
-    const post = this.listing().posts.kijiji
-    return post.status === 'posted' || post.status === 'pending' || post.status === 'failed' ? post : null
-  })
+  readonly kijijiPost = computed(() => this.listing().posts.kijiji)
   readonly kijijiStats = computed(() => {
     const post = this.kijijiPost()
-    if (!post) return null
-    const original = post.originalPostedAt ?? post.postedAt
+    if (post.status !== 'posted' && post.status !== 'pending' && post.status !== 'failed') return null
     return {
-      originalPostedAt: original,
+      originalPostedAt: post.originalPostedAt ?? post.postedAt,
       repostedAt: post.lastRefreshedAt,
       views: post.views,
       searchPage: post.searchPage,
@@ -62,14 +52,9 @@ export class ListingCardComponent {
   }
 
   handlePlatformAction(platformId: PlatformId) {
+    if (platformId !== 'kijiji') return
     const post = this.listing().posts[platformId]
     if (post.status === 'posted') this.refresh.emit({ listing: this.listing(), platforms: [platformId] })
     else this.publish.emit({ listing: this.listing(), platforms: [platformId] })
-  }
-
-  publishLabel() {
-    const unposted = this.unpostedPlatforms()
-    if (unposted.length < PLATFORM_IDS.length) return `Publish to ${PLATFORMS[unposted[0]].shortLabel}`
-    return 'Publish everywhere'
   }
 }

@@ -1,5 +1,5 @@
 import { DAY_MS, HOUR_MS } from './constants'
-import { getPostedPlatforms, getPosts, isDraft, isLive } from './listing'
+import { getPosts } from './listing'
 import type { Listing, ListingStats, PlatformId, PlatformPost, Settings } from './types'
 
 export const getPostAgeMs = (post: PlatformPost, now: number) => {
@@ -21,18 +21,18 @@ export const isListingStale = (listing: Listing, settings: Settings, now: number
 export const getStaleListings = (listings: Listing[], settings: Settings, now: number) =>
   listings.filter((listing) => isListingStale(listing, settings, now))
 
-export const getRefreshTargets = (listing: Listing, settings: Settings, now: number): PlatformId[] => {
-  const stalePlatforms = getPosts(listing)
-    .filter((post) => isPostStale(post, settings, now))
-    .map((post) => post.platform)
-  return stalePlatforms.length > 0 ? stalePlatforms : getPostedPlatforms(listing)
+/** Kijiji ads that are live and can be refreshed right now. */
+export const isAvailableForRefresh = (listing: Listing) => listing.posts.kijiji.status === 'posted'
+
+export const getRefreshTargets = (listing: Listing, _settings?: Settings, _now?: number): PlatformId[] => {
+  // Facebook Marketplace support is not live yet — only refresh Kijiji.
+  return isAvailableForRefresh(listing) ? ['kijiji'] : []
 }
 
 export const getListingStats = (listings: Listing[], settings: Settings, now: number): ListingStats => ({
   total: listings.length,
-  live: listings.filter(isLive).length,
+  available: listings.filter(isAvailableForRefresh).length,
   stale: getStaleListings(listings, settings, now).length,
-  drafts: listings.filter(isDraft).length,
 })
 
 export const formatAge = (ms: number) => {

@@ -60,8 +60,12 @@ export const createBanner = ({ job, listing }: JobContext, hint: string, callbac
   host.style.all = 'initial'
   host.style.position = 'fixed'
   host.style.zIndex = '2147483647'
-  host.style.right = '16px'
-  host.style.bottom = '16px'
+  host.style.left = '12px'
+  host.style.right = '12px'
+  host.style.bottom = '12px'
+  host.style.width = 'auto'
+  host.style.maxWidth = '20rem'
+  host.style.marginLeft = 'auto'
   const shadow = host.attachShadow({ mode: 'open' })
   shadow.append(h('link', { rel: 'stylesheet', href: chrome.runtime.getURL('styles.css') }))
 
@@ -122,7 +126,7 @@ export const createBanner = ({ job, listing }: JobContext, hint: string, callbac
     urlInput,
     h(
       'div',
-      { className: 'flex justify-end gap-2' },
+      { className: 'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end' },
       h('button', { type: 'button', className: `${BUTTON_CLASS} text-slate-600 hover:bg-slate-100`, textContent: 'Cancel', onclick: handleCancel }),
       h('button', { type: 'button', className: `${BUTTON_CLASS} bg-indigo-600 text-white hover:bg-indigo-700`, textContent: 'Mark as posted', onclick: handleMarkPosted }),
     ),
@@ -143,7 +147,7 @@ export const createBanner = ({ job, listing }: JobContext, hint: string, callbac
 
   const panel = h(
     'section',
-    { className: 'w-80 overflow-hidden rounded-xl bg-white font-sans shadow-2xl ring-1 ring-slate-900/10', ariaLabel: 'ListSync assistant' },
+    { className: 'w-full overflow-hidden rounded-xl bg-white font-sans shadow-2xl ring-1 ring-slate-900/10', ariaLabel: 'ListSync assistant' },
     h(
       'header',
       { className: 'flex items-center justify-between gap-2 bg-indigo-600 px-4 py-3 text-white' },

@@ -34,9 +34,9 @@ export class PopupComponent {
   readonly statItems = computed(() => {
     const stats = this.stats()
     return [
-      { label: 'Live', value: stats.live, className: 'text-emerald-600' },
+      { label: 'Available', value: stats.available, className: 'text-emerald-600' },
       { label: 'Stale', value: stats.stale, className: 'text-amber-600' },
-      { label: 'Drafts', value: stats.drafts, className: 'text-slate-500' },
+      { label: 'All', value: stats.total, className: 'text-slate-900' },
     ]
   })
 

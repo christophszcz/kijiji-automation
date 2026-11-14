@@ -1,40 +1,29 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core'
 import { FormsModule } from '@angular/forms'
-import { isDraft, isLive } from '../shared/listing'
-import { getListingStats, getStaleListings, isListingStale } from '../shared/stale'
-import { deleteListing, upsertListing } from '../shared/storage'
+import { getListingStats, getStaleListings, isAvailableForRefresh, isListingStale } from '../shared/stale'
 import type { Listing, PlatformId } from '../shared/types'
 import { ButtonComponent } from '../ui/button.component'
 import { ListingActionsService } from '../ui/listing-actions.service'
 import { ListingStore, NowStore, SettingsStore } from '../ui/listing.store'
 import { ToastComponent } from '../ui/toast.component'
 import { ListingCardComponent } from './listing-card.component'
-import { ListingFormComponent, type ListingFormResult } from './listing-form.component'
 import { SettingsPanelComponent } from './settings-panel.component'
 
-type Filter = 'all' | 'stale' | 'live' | 'drafts'
+type Filter = 'available' | 'stale' | 'all'
 type View = 'listings' | 'settings'
 
 const FILTERS: { id: Filter; label: string }[] = [
+  { id: 'available', label: 'Available For Refresh' },
+  { id: 'stale', label: 'Stale' },
   { id: 'all', label: 'All' },
-  { id: 'stale', label: 'Needs refresh' },
-  { id: 'live', label: 'Live' },
-  { id: 'drafts', label: 'Drafts' },
 ]
 
-const getFilterFromHash = (): Filter => (location.hash === '#stale' ? 'stale' : 'all')
+const getFilterFromHash = (): Filter => (location.hash === '#stale' ? 'stale' : 'available')
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [
-    FormsModule,
-    ButtonComponent,
-    ToastComponent,
-    ListingCardComponent,
-    ListingFormComponent,
-    SettingsPanelComponent,
-  ],
+  imports: [FormsModule, ButtonComponent, ToastComponent, ListingCardComponent, SettingsPanelComponent],
   templateUrl: './dashboard.component.html',
 })
 export class DashboardComponent implements OnInit, OnDestroy {
@@ -47,8 +36,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly view = signal<View>('listings')
   readonly filter = signal<Filter>(getFilterFromHash())
   readonly query = signal('')
-  readonly editingListing = signal<Listing | null>(null)
-  readonly isFormOpen = signal(location.hash === '#new')
   readonly toast = signal<string | null>(null)
   readonly isSyncing = signal(false)
 
@@ -65,9 +52,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const now = this.now()
     const filter = this.filter()
     const matchesFilter = (listing: Listing) => {
+      if (filter === 'available') return isAvailableForRefresh(listing)
       if (filter === 'stale') return isListingStale(listing, settings, now)
-      if (filter === 'live') return isLive(listing)
-      if (filter === 'drafts') return isDraft(listing)
       return true
     }
     const matchesQuery = (listing: Listing) =>
@@ -80,16 +66,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly statCards = computed(() => {
     const stats = this.stats()
     return [
-      { label: 'Total listings', value: stats.total, className: 'text-slate-900' },
-      { label: 'Live', value: stats.live, className: 'text-emerald-600' },
-      { label: 'Need refresh', value: stats.stale, className: 'text-amber-600' },
-      { label: 'Drafts', value: stats.drafts, className: 'text-slate-500' },
+      { label: 'Available for refresh', value: stats.available, className: 'text-emerald-600' },
+      { label: 'Stale', value: stats.stale, className: 'text-amber-600' },
+      { label: 'All', value: stats.total, className: 'text-slate-900' },
     ]
   })
 
   private handleHashChange = () => {
     this.filter.set(getFilterFromHash())
-    if (location.hash === '#new') this.openCreateForm()
   }
 
   ngOnInit() {
@@ -104,17 +88,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.toast.set(null)
   }
 
-  closeForm() {
-    this.isFormOpen.set(false)
-    this.editingListing.set(null)
-    if (location.hash === '#new') history.replaceState(null, '', location.pathname)
-  }
-
-  openCreateForm() {
-    this.editingListing.set(null)
-    this.isFormOpen.set(true)
-  }
-
   private async runAction(action: () => Promise<unknown>, successMessage: string) {
     try {
       await action()
@@ -122,16 +95,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     } catch (error) {
       this.toast.set(this.actions.getErrorMessage(error))
     }
-  }
-
-  handleEdit(listing: Listing) {
-    this.editingListing.set(listing)
-    this.isFormOpen.set(true)
-  }
-
-  handleDelete(listing: Listing) {
-    if (!confirm(`Delete "${listing.title}" from ListSync? This does not remove it from the marketplaces.`)) return
-    void this.runAction(() => deleteListing(listing.id), 'Listing deleted')
   }
 
   handlePublish(listing: Listing, platforms: PlatformId[]) {
@@ -161,15 +124,5 @@ export class DashboardComponent implements OnInit, OnDestroy {
     void this.runAction(async () => {
       await this.actions.importFromMarketplaces(platforms)
     }, 'Opened your marketplace account pages. Ads will appear here once import finishes.').finally(() => this.isSyncing.set(false))
-  }
-
-  async handleSave({ listing, publishTo }: ListingFormResult) {
-    await upsertListing(listing)
-    this.closeForm()
-    if (publishTo.length === 0) {
-      this.toast.set('Listing saved')
-      return
-    }
-    await this.runAction(() => this.actions.publishListing(listing.id, publishTo), 'Saved. Finish posting in the opened tabs.')
   }
 }

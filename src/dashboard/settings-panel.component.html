@@ -1,11 +1,11 @@
-<form (submit)="handleSubmit($event)" class="max-w-xl rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+<form (submit)="handleSubmit($event)" class="max-w-xl rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-6">
   <h2 class="text-lg font-semibold text-slate-900">Stale listing reminders</h2>
   <p class="mt-1 text-sm text-slate-500">
     Listings sink in search results as they age. ListSync flags them and reminds you to refresh.
   </p>
 
   <div class="mt-6 flex flex-col gap-5">
-    <label class="flex items-center justify-between gap-4 text-sm text-slate-700">
+    <label class="flex flex-col gap-2 text-sm text-slate-700 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
       <span>
         <span class="block font-medium">Mark listings stale after</span>
         <span class="text-slate-500">Days since posting or the last refresh</span>
@@ -24,7 +24,7 @@
       </span>
     </label>
 
-    <label class="flex items-center justify-between gap-4 text-sm text-slate-700">
+    <label class="flex flex-col gap-2 text-sm text-slate-700 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
       <span>
         <span class="block font-medium">Check every</span>
         <span class="text-slate-500">How often ListSync looks for stale listings</span>
@@ -51,7 +51,7 @@
       <input
         type="checkbox"
         role="switch"
-        class="h-5 w-5 rounded border-slate-300 text-indigo-600"
+        class="h-5 w-5 shrink-0 rounded border-slate-300 text-indigo-600"
         [ngModel]="draft().remindersEnabled"
         (ngModelChange)="updateDraft({ remindersEnabled: $event })"
         name="remindersEnabled"
@@ -59,8 +59,8 @@
     </label>
   </div>
 
-  <div class="mt-8 flex justify-between gap-2">
-    <app-button (click)="handleCheckNow()">Check now</app-button>
-    <app-button type="submit" variant="primary">Save settings</app-button>
+  <div class="mt-8 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+    <app-button className="w-full sm:w-auto" (click)="handleCheckNow()">Check now</app-button>
+    <app-button className="w-full sm:w-auto" type="submit" variant="primary">Save settings</app-button>
   </div>
 </form>

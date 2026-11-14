@@ -1,65 +1,66 @@
 <div class="min-h-screen bg-slate-100">
   <header class="border-b border-slate-200 bg-white">
-    <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
-      <div class="flex items-center gap-3">
-        <img src="icons/icon-48.png" alt="" class="h-9 w-9" />
-        <div>
+    <div class="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6">
+      <div class="flex min-w-0 items-center gap-3">
+        <img src="icons/icon-48.png" alt="" class="h-9 w-9 shrink-0" />
+        <div class="min-w-0">
           <h1 class="text-lg font-bold text-slate-900">ListSync</h1>
           <p class="text-xs text-slate-500">Kijiji & Facebook Marketplace manager</p>
         </div>
       </div>
-      <nav class="flex items-center gap-1" aria-label="Main">
+      <nav class="flex flex-wrap items-center gap-1" aria-label="Main">
         <app-button [variant]="view() === 'listings' ? 'secondary' : 'ghost'" [ariaCurrent]="view() === 'listings' ? 'page' : undefined" (click)="view.set('listings')">
           Listings
         </app-button>
         <app-button [variant]="view() === 'settings' ? 'secondary' : 'ghost'" [ariaCurrent]="view() === 'settings' ? 'page' : undefined" (click)="view.set('settings')">
           Settings
         </app-button>
-        <app-button className="ml-2" [disabled]="isSyncing()" (click)="handleSync()">
+        <app-button className="sm:ml-2" variant="primary" [disabled]="isSyncing()" (click)="handleSync()">
           {{ isSyncing() ? 'Syncing…' : 'Sync my ads' }}
         </app-button>
-        <app-button variant="primary" (click)="openCreateForm()">+ New listing</app-button>
       </nav>
     </div>
   </header>
 
-  <main class="mx-auto max-w-7xl px-6 py-6">
+  <main class="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-6">
     @if (view() === 'settings') {
       <app-settings-panel [settings]="settings()" (notify)="toast.set($event)" />
     } @else {
-      <section class="grid grid-cols-2 gap-4 md:grid-cols-4" aria-label="Summary">
+      <section class="grid grid-cols-3 gap-3 sm:gap-4" aria-label="Summary">
         @for (card of statCards(); track card.label) {
-          <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-            <p class="text-xs font-medium uppercase tracking-wide text-slate-500">{{ card.label }}</p>
-            <p class="mt-1 text-3xl font-bold {{ card.className }}">{{ card.value }}</p>
+          <div class="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4">
+            <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500 sm:text-xs">{{ card.label }}</p>
+            <p class="mt-1 text-2xl font-bold sm:text-3xl {{ card.className }}">{{ card.value }}</p>
           </div>
         }
       </section>
 
       @if (staleListings().length > 0) {
-        <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-amber-50 px-5 py-3 ring-1 ring-amber-200">
+        <div class="mt-4 flex flex-col gap-3 rounded-2xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-5">
           <p class="text-sm text-amber-900">
             <strong>{{ staleListings().length }}</strong>
             listing{{ staleListings().length === 1 ? ' has' : 's have' }} been up for {{ settings().staleAfterDays }}+ days and may be buried in
             search results.
           </p>
-          <app-button variant="warning" size="sm" (click)="handleRefreshAllStale()">↻ Refresh all stale</app-button>
+          <app-button className="w-full sm:w-auto" variant="warning" size="sm" (click)="handleRefreshAllStale()">↻ Refresh all stale</app-button>
         </div>
       }
 
-      <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
-        <div class="flex gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200" role="tablist" aria-label="Filter listings">
-          @for (item of filters; track item.id) {
-            <button
-              type="button"
-              role="tab"
-              [attr.aria-selected]="filter() === item.id"
-              (click)="filter.set(item.id)"
-              [class]="'rounded-lg px-3 py-1.5 text-sm font-medium transition ' + (filter() === item.id ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100')"
-            >
-              {{ item.label }}
-            </button>
-          }
+      <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div class="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:overflow-visible sm:px-0">
+          <div class="inline-flex min-w-full gap-1 rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200 sm:min-w-0" role="tablist" aria-label="Filter listings">
+            @for (item of filters; track item.id) {
+              <button
+                type="button"
+                role="tab"
+                [attr.aria-selected]="filter() === item.id"
+                (click)="filter.set(item.id)"
+                [class]="'shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium transition ' + (filter() === item.id ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100')"
+              >
+                {{ item.label }}
+              </button>
+            }
+          </div>
         </div>
         <input
           type="search"
@@ -68,27 +69,26 @@
           [ngModel]="query()"
           (ngModelChange)="query.set($event)"
           name="query"
-          class="w-64 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:w-64"
         />
       </div>
 
       @if (!isLoading() && visibleListings().length === 0) {
-        <div class="mt-10 rounded-2xl border-2 border-dashed border-slate-300 px-6 py-16 text-center">
+        <div class="mt-10 rounded-2xl border-2 border-dashed border-slate-300 px-4 py-12 text-center sm:px-6 sm:py-16">
           <p class="text-base font-medium text-slate-700">
             {{ listings().length === 0 ? 'No listings yet' : 'No listings match this view' }}
           </p>
           <p class="mt-1 text-sm text-slate-500">
             {{
               listings().length === 0
-                ? 'Pull in the ads already on your Kijiji and Facebook accounts, or create a new one.'
+                ? 'Pull in the ads already on your Kijiji account to start refreshing them.'
                 : 'Try another filter or search.'
             }}
           </p>
           @if (listings().length === 0) {
-            <div class="mt-5 flex flex-wrap items-center justify-center gap-2">
+            <div class="mt-5 flex flex-col items-stretch justify-center gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               <app-button variant="primary" [disabled]="isSyncing()" (click)="handleSync(['kijiji'])">Sync from Kijiji</app-button>
               <app-button [disabled]="isSyncing()" (click)="handleSync(['facebook'])">Sync from Facebook</app-button>
-              <app-button variant="ghost" (click)="openCreateForm()">+ Create listing</app-button>
             </div>
           }
         </div>
@@ -100,8 +100,6 @@
             [listing]="listing"
             [settings]="settings()"
             [now]="now()"
-            (edit)="handleEdit($event)"
-            (deleted)="handleDelete($event)"
             (publish)="handlePublish($event.listing, $event.platforms)"
             (refresh)="handleRefresh($event.listing, $event.platforms)"
             (snooze)="handleSnooze($event)"
@@ -111,9 +109,6 @@
     }
   </main>
 
-  @if (isFormOpen()) {
-    <app-listing-form [listing]="editingListing()" (saved)="handleSave($event)" (closed)="closeForm()" />
-  }
   @if (toast()) {
     <app-toast [message]="toast()!" (dismissed)="handleDismissToast()" />
   }

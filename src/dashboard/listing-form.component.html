@@ -1,5 +1,5 @@
 <app-modal [title]="listing() ? 'Edit listing' : 'New listing'" (closed)="closed.emit()">
-  <form (submit)="handleSubmit($event)" novalidate class="flex flex-col gap-5 px-6 py-5">
+  <form (submit)="handleSubmit($event)" novalidate class="flex flex-col gap-5 px-4 py-4 sm:px-6 sm:py-5">
     <div>
       <label for="title" class="mb-1 block text-sm font-medium text-slate-700">Title</label>
       <input
@@ -98,7 +98,7 @@
       <legend class="mb-2 text-sm font-medium text-slate-700">
         Photos <span class="font-normal text-slate-500">({{ draft().images.length }}/{{ maxImages }}, first is the cover)</span>
       </legend>
-      <div class="grid grid-cols-5 gap-2">
+      <div class="grid grid-cols-3 gap-2 sm:grid-cols-5">
         @for (image of draft().images; track $index) {
           <div class="group relative aspect-square overflow-hidden rounded-lg ring-1 ring-slate-200">
             <img [src]="image" [alt]="'Photo ' + ($index + 1)" class="h-full w-full object-cover" />
@@ -140,8 +140,8 @@
           @let postDraft = draft().posts[platformId];
           @let isPending = listing()?.posts[platformId].status === 'pending';
           <div class="rounded-lg bg-white p-3 ring-1 ring-slate-200">
-            <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
-              <span class="w-40 text-sm font-medium text-slate-800">{{ platforms[platformId].label }}</span>
+            <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6">
+              <span class="text-sm font-medium text-slate-800 sm:w-40">{{ platforms[platformId].label }}</span>
               <label class="flex items-center gap-2 text-sm text-slate-700">
                 <input
                   type="checkbox"
@@ -190,10 +190,10 @@
       </div>
     </fieldset>
 
-    <div class="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-4">
-      <app-button variant="ghost" (click)="closed.emit()">Cancel</app-button>
-      <app-button [disabled]="isSaving() || isProcessingImages()" (click)="submit(false)">Save</app-button>
-      <app-button type="submit" variant="primary" [disabled]="isSaving() || isProcessingImages() || draft().publishTo.length === 0">
+    <div class="flex flex-col-reverse gap-2 border-t border-slate-200 pt-4 sm:flex-row sm:flex-wrap sm:justify-end">
+      <app-button className="w-full sm:w-auto" variant="ghost" (click)="closed.emit()">Cancel</app-button>
+      <app-button className="w-full sm:w-auto" [disabled]="isSaving() || isProcessingImages()" (click)="submit(false)">Save</app-button>
+      <app-button className="w-full sm:w-auto" type="submit" variant="primary" [disabled]="isSaving() || isProcessingImages() || draft().publishTo.length === 0">
         Save & publish @if (draft().publishTo.length > 0) { ({{ draft().publishTo.length }}) }
       </app-button>
     </div>

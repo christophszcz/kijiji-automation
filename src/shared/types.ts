@@ -131,7 +131,6 @@ export interface JobContext {
 
 export interface ListingStats {
   total: number
-  live: number
+  available: number
   stale: number
-  drafts: number
 }
