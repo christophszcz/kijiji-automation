@@ -1,7 +1,7 @@
 import { pickImageList } from '../shared/images'
 import { delay, isVisible, waitFor } from './dom'
 import { extractKijijiAdId, parseKijijiPrice, type KijijiAdSnapshot } from './kijiji-api'
-import { parseKijijiTags, scrapeKijijiTagsFromDom, scrapeKijijiTagsFromHtml, tagsFromFormFields } from './kijiji-tags'
+import { pickKijijiTags, scrapeKijijiTagsFromDom, scrapeKijijiTagsFromHtml, tagsFromFormFields } from './kijiji-tags'
 
 const EDIT_FORM_TIMEOUT_MS = 45_000
 // Photos are re-uploaded through the uploader; copying the `images` field would attach them a second time.
@@ -140,7 +140,7 @@ export const scrapeKijijiEditFormFromDom = () => {
       if (key) remember(attributes, key, value)
     })
 
-  const tags = parseKijijiTags(scrapeKijijiTagsFromDom(), tagsFromFormFields(formFields, attributes))
+  const tags = pickKijijiTags(scrapeKijijiTagsFromDom(), tagsFromFormFields(formFields, attributes))
 
   return {
     formFields,
@@ -263,11 +263,10 @@ const snapshotFromFormFields = (
     formFields.categoryId ||
     formFields['postAdForm.categoryId'] ||
     formFields['category.id']
-  const resolvedTags = parseKijijiTags(tags, tagsFromFormFields(formFields, attributes))
-  if (resolvedTags.length > 0) {
-    remember(formFields, 'postAdForm.tags', resolvedTags.join(','))
-    remember(attributes, 'tags_s', resolvedTags.join(','))
-  }
+  const resolvedTags = pickKijijiTags(tags, tagsFromFormFields(formFields, attributes))
+  formFields['postAdForm.tags'] = resolvedTags.join(',')
+  if (resolvedTags.length > 0) attributes.tags_s = resolvedTags.join(',')
+  else delete attributes.tags_s
 
   return {
     externalId: adId,

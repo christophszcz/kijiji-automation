@@ -19,7 +19,7 @@ import {
   getKijijiEditUrl,
   isKijijiEditPage,
 } from './kijiji-edit'
-import { parseKijijiTags } from './kijiji-tags'
+import { pickKijijiTags } from './kijiji-tags'
 import type { RefreshOutcome } from './runner'
 
 const deletedKey = (jobId: string) => `listsync:kijiji-deleted:${jobId}`
@@ -83,7 +83,8 @@ const captureFromEditSources = async (adId: string, listing: Listing, previousUr
     address: primary.address || fromAccount?.address || fromPage?.address,
     formFields: { ...fromEditFetch?.formFields, ...primary.formFields },
     labeledFields: { ...fromEditFetch?.labeledFields, ...primary.labeledFields },
-    tags: parseKijijiTags(primary.tags, fromEditFetch?.tags, fromAccount?.tags, fromPage?.tags, listing.kijiji?.tags),
+    // The edit form's own tag list is exact (including "no tags"); other sources are fallbacks only.
+    tags: fromEditDom ? primary.tags ?? [] : pickKijijiTags(primary.tags, fromAccount?.tags, listing.kijiji?.tags),
     // The edit page is the only source with the full ordered gallery; the account feed and
     // public ad page only expose the cover thumbnail.
     images: pickImageList(primary.images, fromEditFetch?.images, fromAccount?.images, fromPage?.images, listing.images),

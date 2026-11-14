@@ -618,10 +618,9 @@ export const autoPostKijiji = async ({ listing, report }: KijijiAutoPostInput) =
   )
   await uploadPhotos(listing.images, report)
 
-  const tags = parseKijijiTags(
-    listing.kijiji?.tags,
-    tagsFromFormFields(formFields, listing.kijiji?.attributes ?? {}),
-  )
+  const tags = listing.kijiji?.tags
+    ? parseKijijiTags(listing.kijiji.tags)
+    : tagsFromFormFields(formFields, listing.kijiji?.attributes ?? {})
   if (tags.length > 0) await fillKijijiTags(tags, report)
 
   await fillUnsetDropdowns(listing, report)

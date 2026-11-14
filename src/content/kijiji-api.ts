@@ -2,7 +2,7 @@ import { MAX_IMAGES } from '../shared/constants'
 import { dedupeIdenticalImages, pickImageList, urlToDataUrl } from '../shared/images'
 import type { Listing } from '../shared/types'
 import { delay, isVisible } from './dom'
-import { parseKijijiTags, scrapeKijijiTagsFromHtml, tagsFromFormFields } from './kijiji-tags'
+import { parseKijijiTags, pickKijijiTags, scrapeKijijiTagsFromHtml, tagsFromFormFields } from './kijiji-tags'
 
 const AD_ID_PATTERN = /(\d{8,})/
 const PRICE_PATTERN = /(?:CA\$|C\$|\$)\s*([\d,]+(?:\.\d{1,2})?)/i
@@ -187,7 +187,7 @@ const adRecordToSnapshot = (raw: unknown, fallbackUrl?: string): KijijiAdSnapsho
     categoryId: String(ad.categoryId ?? asRecord(ad.category)?.id ?? '') || undefined,
     attributes: extractAttributes(ad),
     address: asString(location?.address) || asString(ad.address) || asString(ad.postalCode) || undefined,
-    tags: parseKijijiTags(
+    tags: pickKijijiTags(
       Array.isArray(ad.tags) ? ad.tags.map((tag) => asString(tag) ?? '').filter(Boolean) : asString(ad.tags),
       Array.isArray(ad.keywords) ? ad.keywords.map((tag) => asString(tag) ?? '').filter(Boolean) : asString(ad.keywords),
       asString(asRecord(ad.attributeMap)?.tags_s),
@@ -226,7 +226,7 @@ const extractSnapshotFromHtml = (html: string, adId: string, pageUrl: string): K
           return {
             ...snapshot,
             attributes: { ...htmlAttributes, ...snapshot.attributes },
-            tags: parseKijijiTags(snapshot.tags, scrapeKijijiTagsFromHtml(html), tagsFromFormFields({}, htmlAttributes)),
+            tags: pickKijijiTags(snapshot.tags, tagsFromFormFields({}, htmlAttributes)),
           }
         }
       } catch {
@@ -547,19 +547,26 @@ export const hydrateSnapshotImages = async (snapshot: KijijiAdSnapshot): Promise
   return { ...snapshot, images: await dedupeIdenticalImages(images) }
 }
 
-export const mergeSnapshotWithListing = (listing: Listing, snapshot: KijijiAdSnapshot): KijijiAdSnapshot => ({
-  externalId: snapshot.externalId,
-  title: snapshot.title || listing.title,
-  description: snapshot.description || listing.description,
-  price: snapshot.price > 0 ? snapshot.price : listing.price > 0 ? listing.price : snapshot.price || listing.price,
-  location: snapshot.location || listing.location,
-  category: snapshot.category || listing.category,
-  categoryId: snapshot.categoryId || listing.kijiji?.categoryId,
-  attributes: { ...listing.kijiji?.attributes, ...snapshot.attributes },
-  address: snapshot.address || listing.kijiji?.address,
-  formFields: { ...listing.kijiji?.formFields, ...snapshot.formFields },
-  labeledFields: { ...listing.kijiji?.labeledFields, ...snapshot.labeledFields },
-  tags: parseKijijiTags(snapshot.tags, listing.kijiji?.tags),
-  images: pickImageList(snapshot.images, listing.images),
-  url: snapshot.url,
-})
+export const mergeSnapshotWithListing = (listing: Listing, snapshot: KijijiAdSnapshot): KijijiAdSnapshot => {
+  const tags = snapshot.tags ? parseKijijiTags(snapshot.tags) : parseKijijiTags(listing.kijiji?.tags)
+  const attributes = { ...listing.kijiji?.attributes, ...snapshot.attributes }
+  if (tags.length > 0) attributes.tags_s = tags.join(',')
+  else delete attributes.tags_s
+
+  return {
+    externalId: snapshot.externalId,
+    title: snapshot.title || listing.title,
+    description: snapshot.description || listing.description,
+    price: snapshot.price > 0 ? snapshot.price : listing.price > 0 ? listing.price : snapshot.price || listing.price,
+    location: snapshot.location || listing.location,
+    category: snapshot.category || listing.category,
+    categoryId: snapshot.categoryId || listing.kijiji?.categoryId,
+    attributes,
+    address: snapshot.address || listing.kijiji?.address,
+    formFields: { ...listing.kijiji?.formFields, ...snapshot.formFields, 'postAdForm.tags': tags.join(',') },
+    labeledFields: { ...listing.kijiji?.labeledFields, ...snapshot.labeledFields },
+    tags,
+    images: pickImageList(snapshot.images, listing.images),
+    url: snapshot.url,
+  }
+}
