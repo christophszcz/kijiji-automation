@@ -1,7 +1,16 @@
 import { Component, computed, input, output } from '@angular/core'
 import { CONDITION_LABELS, PLATFORMS } from '../shared/constants'
-import { formatDate, formatDateTime, formatPrice } from '../shared/format'
-import { formatAge, getPostAgeMs, isListingStale, isPostStale, isSnoozed } from '../shared/stale'
+import { formatDate, formatDateTime, formatListingDate, formatPrice, startOfLocalDay } from '../shared/format'
+import { originalPostedAtFromExpires } from '../shared/kijiji-dates'
+import {
+  formatAge,
+  getPostAgeMs,
+  hasRefreshQuota,
+  isAvailableForRefresh,
+  isListingStale,
+  isPostStale,
+  isSnoozed,
+} from '../shared/stale'
 import type { Listing, PlatformId, Settings } from '../shared/types'
 import { ButtonComponent } from '../ui/button.component'
 import { PlatformBadgeComponent } from '../ui/platform-badge.component'
@@ -26,10 +35,13 @@ export class ListingCardComponent {
   readonly formatPrice = formatPrice
   readonly formatDate = formatDate
   readonly formatDateTime = formatDateTime
+  readonly formatListingDate = formatListingDate
   readonly formatAge = formatAge
   readonly getPostAgeMs = getPostAgeMs
 
   readonly isStale = computed(() => isListingStale(this.listing(), this.settings(), this.now()))
+  readonly canRefresh = computed(() => isAvailableForRefresh(this.listing(), this.settings(), this.now()))
+  readonly hasQuota = computed(() => hasRefreshQuota(this.settings(), this.now()))
   readonly coverImage = computed(() => this.listing().images[0])
   readonly isSnoozedNow = computed(() => isSnoozed(this.listing(), this.now()))
   readonly metaLine = computed(() =>
@@ -39,8 +51,17 @@ export class ListingCardComponent {
   readonly kijijiStats = computed(() => {
     const post = this.kijijiPost()
     if (post.status !== 'posted' && post.status !== 'pending' && post.status !== 'failed') return null
+    // Originally posted is the Expires calendar day minus Kijiji’s standard ad lifetime (date only).
+    const originalPostedAt =
+      post.expiresAt !== undefined
+        ? originalPostedAtFromExpires(post.expiresAt)
+        : post.originalPostedAt !== undefined
+          ? startOfLocalDay(post.originalPostedAt)
+          : post.postedAt !== undefined
+            ? startOfLocalDay(post.postedAt)
+            : undefined
     return {
-      originalPostedAt: post.originalPostedAt ?? post.postedAt,
+      originalPostedAt,
       repostedAt: post.lastRefreshedAt,
       views: post.views,
       searchPage: post.searchPage,
@@ -54,7 +75,11 @@ export class ListingCardComponent {
   handlePlatformAction(platformId: PlatformId) {
     if (platformId !== 'kijiji') return
     const post = this.listing().posts[platformId]
-    if (post.status === 'posted') this.refresh.emit({ listing: this.listing(), platforms: [platformId] })
-    else this.publish.emit({ listing: this.listing(), platforms: [platformId] })
+    if (post.status === 'posted') {
+      if (!this.canRefresh()) return
+      this.refresh.emit({ listing: this.listing(), platforms: [platformId] })
+      return
+    }
+    this.publish.emit({ listing: this.listing(), platforms: [platformId] })
   }
 }

@@ -35,7 +35,7 @@ export class PopupComponent {
     const stats = this.stats()
     return [
       { label: 'Available', value: stats.available, className: 'text-emerald-600' },
-      { label: 'Stale', value: stats.stale, className: 'text-amber-600' },
+      { label: 'Never refreshed', value: stats.stale, className: 'text-amber-600' },
       { label: 'All', value: stats.total, className: 'text-slate-900' },
     ]
   })

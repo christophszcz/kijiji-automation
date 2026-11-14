@@ -1,7 +1,8 @@
 import { Component, effect, inject, input, output, signal } from '@angular/core'
 import { FormsModule } from '@angular/forms'
+import { DEFAULT_SETTINGS } from '../shared/constants'
 import { saveSettings } from '../shared/storage'
-import type { Settings } from '../shared/types'
+import type { KijijiMembership, Settings } from '../shared/types'
 import { ButtonComponent } from '../ui/button.component'
 import { ListingActionsService } from '../ui/listing-actions.service'
 
@@ -21,7 +22,7 @@ export class SettingsPanelComponent {
   readonly notify = output<string>()
 
   private readonly actions = inject(ListingActionsService)
-  readonly draft = signal<Settings>({ staleAfterDays: 7, checkIntervalHours: 6, remindersEnabled: true })
+  readonly draft = signal<Settings>({ ...DEFAULT_SETTINGS })
   readonly inputClass = INPUT_CLASS
 
   constructor() {
@@ -31,18 +32,24 @@ export class SettingsPanelComponent {
   async handleSubmit(event: Event) {
     event.preventDefault()
     const current = this.draft()
+    const membership: KijijiMembership = current.membership === 'k_plus' ? 'k_plus' : 'free'
     await saveSettings({
-      staleAfterDays: clamp(current.staleAfterDays, 1, 60),
+      ...current,
+      membership,
       checkIntervalHours: clamp(current.checkIntervalHours, 1, 24),
       remindersEnabled: current.remindersEnabled,
     })
-    this.notify.emit('Settings saved')
+    this.notify.emit(membership === 'k_plus' ? 'Settings saved · K+ unlimited refreshes' : 'Settings saved · Free (3 refreshes/day)')
   }
 
   async handleCheckNow() {
     try {
       const staleCount = await this.actions.checkStaleNow()
-      this.notify.emit(staleCount > 0 ? `${staleCount} stale listing${staleCount === 1 ? '' : 's'} found` : 'Everything is fresh')
+      this.notify.emit(
+        staleCount > 0
+          ? `${staleCount} never-refreshed listing${staleCount === 1 ? '' : 's'} found`
+          : 'No never-refreshed listings',
+      )
     } catch (error) {
       this.notify.emit(this.actions.getErrorMessage(error))
     }

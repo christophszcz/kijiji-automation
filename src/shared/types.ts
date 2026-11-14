@@ -21,12 +21,14 @@ export interface PlatformPost {
   platform: PlatformId
   status: PostStatus
   url?: string
-  /** First known post time on the marketplace (preserved across refreshes). */
+  /** First known post day on the marketplace (date-only; preserved across refreshes). */
   originalPostedAt?: number
   postedAt?: number
   /** Most recent successful refresh/repost time. */
   lastRefreshedAt?: number
   lastRemindedAt?: number
+  /** Kijiji ad expiry calendar day (from “Expires” / “Expires in: N days”). */
+  expiresAt?: number
   /** Marketplace view/visit count when last synced. */
   views?: number
   /** Search-results page the ad currently appears on (Kijiji “Page”). */
@@ -64,6 +66,8 @@ export interface ImportedAd {
   imageUrls?: string[]
   url: string
   postedAt?: number
+  /** Absolute expiry calendar day from Kijiji. */
+  expiresAt?: number
   views?: number
   searchPage?: number
 }
@@ -105,10 +109,17 @@ export interface ListingSnapshot {
   kijiji?: KijijiDetails
 }
 
+/** Kijiji account tier — free members are limited to 3 refreshes per day. */
+export type KijijiMembership = 'free' | 'k_plus'
+
 export interface Settings {
-  staleAfterDays: number
+  membership: KijijiMembership
   remindersEnabled: boolean
   checkIntervalHours: number
+  /** Local calendar day (YYYY-MM-DD) the free-member refresh counter applies to. */
+  refreshUsageDay?: string
+  /** Kijiji refreshes already used on refreshUsageDay (free members only). */
+  refreshUsageCount?: number
 }
 
 export type JobType = 'publish' | 'refresh'

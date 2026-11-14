@@ -3,6 +3,10 @@ import type { ItemCondition, PlatformConfig, PlatformId, Settings } from './type
 export const DAY_MS = 86_400_000
 export const HOUR_MS = 3_600_000
 export const MAX_IMAGES = 10
+/** Kijiji free accounts may refresh this many ads per local calendar day. */
+export const FREE_DAILY_REFRESH_LIMIT = 3
+/** Standard Kijiji active-ad lifetime used with “Expires in: N days”. */
+export const KIJIJI_AD_DURATION_DAYS = 60
 
 export const PLATFORM_IDS: PlatformId[] = ['kijiji', 'facebook']
 
@@ -37,7 +41,9 @@ export const CONDITION_LABELS: Record<ItemCondition, string> = {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  staleAfterDays: 7,
+  membership: 'free',
   remindersEnabled: true,
   checkIntervalHours: 6,
+  refreshUsageDay: undefined,
+  refreshUsageCount: 0,
 }

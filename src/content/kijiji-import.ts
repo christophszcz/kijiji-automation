@@ -1,4 +1,5 @@
 import { pickImageList } from '../shared/images'
+import { expiresAtFromDaysRemaining } from '../shared/kijiji-dates'
 import { sendMessage } from '../shared/messages'
 import type { ImportedAd, ImportJob } from '../shared/types'
 import { delay } from './dom'
@@ -87,6 +88,17 @@ const extractViews = (ad: Record<string, unknown>) =>
 const extractSearchPage = (ad: Record<string, unknown>) =>
   firstDefinedCount(nestedStat(ad, ['pageNumber', 'page', 'searchPage', 'rankingPage', 'rank', 'ranking']))
 
+const parseExpiresAt = (ad: Record<string, unknown>, now = Date.now()) => {
+  const absolute = parsePostedAt(
+    ad.expiryDate ?? ad.expirationDate ?? ad.expiresAt ?? ad.expireDate ?? ad.endDate ?? ad.adExpiryDate,
+  )
+  if (absolute !== undefined) return absolute
+  const days = firstDefinedCount(
+    nestedStat(ad, ['daysToExpire', 'daysUntilExpiry', 'expireInDays', 'expiresInDays', 'expiryDays', 'daysLeft']),
+  )
+  return days !== undefined ? expiresAtFromDaysRemaining(days, now) : undefined
+}
+
 const toImportedAd = (raw: unknown): ImportedAd | null => {
   const ad = asRecord(raw)
   if (!ad) return null
@@ -111,6 +123,7 @@ const toImportedAd = (raw: unknown): ImportedAd | null => {
     imageUrls: collectImageUrls(ad),
     url,
     postedAt: parsePostedAt(ad.activationDate ?? ad.postedDate ?? ad.startDate ?? ad.sortingDate ?? ad.creationDate ?? ad.createdDate),
+    expiresAt: parseExpiresAt(ad),
     views: extractViews(ad),
     searchPage: extractSearchPage(ad),
   }
@@ -142,6 +155,7 @@ const mergeImportedAdsById = (...lists: ImportedAd[][]) => {
       category: ad.category || existing.category,
       imageUrls: (ad.imageUrls?.length ? ad.imageUrls : existing.imageUrls) ?? [],
       postedAt: existing.postedAt ?? ad.postedAt,
+      expiresAt: ad.expiresAt ?? existing.expiresAt,
       views: ad.views ?? existing.views,
       searchPage: ad.searchPage ?? existing.searchPage,
     })
@@ -332,8 +346,17 @@ const scrapeKijijiMyAdsDom = (): ImportedAd[] => {
     const href = link.href
     const id = new URL(href, location.origin).searchParams.get('adId') || AD_ID_PATTERN.exec(href)?.[1]
     if (!id || ads.has(id)) return
-    const card = link.closest('li, article, tr, section, [class*="ad"], [data-testid], [class*="listing"]') ?? link.parentElement
+    let card = link.closest('li, article, tr, section, [class*="ad"], [data-testid], [class*="listing"]') ?? link.parentElement
     if (!card) return
+    // Kijiji’s “Expires in: N days” often sits a few ancestors above the title link.
+    let root: Element | null = card
+    for (let depth = 0; root && depth < 8; depth += 1) {
+      if (/expires\s+in:\s*\d+/i.test(root.textContent || '')) {
+        card = root
+        break
+      }
+      root = root.parentElement
+    }
     const text = (card.textContent || link.textContent || '').replace(/\s+/g, ' ').trim()
     const title = (link.getAttribute('aria-label') || link.textContent || text.split(PRICE_PATTERN)[0] || '').trim()
     if (!title || title.length < 3) return
@@ -345,6 +368,7 @@ const scrapeKijijiMyAdsDom = (): ImportedAd[] => {
     const searchPage =
       scrapeLabeledStat(card, ['page', 'pages?', 'page\\s*#?']) ??
       scrapeStatFromText(text, [/\bpage\b[:\s#]*([\d,]+)/i, /([\d,]+)\s*(?:st|nd|rd|th)?\s*page\b/i])
+    const expiresInDays = scrapeStatFromText(text, [/expires\s+in:\s*([\d,]+)\s*days?/i, /expires\s+in\s+([\d,]+)\s*days?/i])
     ads.set(id, {
       platform: 'kijiji',
       externalId: id,
@@ -352,6 +376,7 @@ const scrapeKijijiMyAdsDom = (): ImportedAd[] => {
       price: priceMatch ? Number(priceMatch[1].replace(/,/g, '')) : /free/i.test(text) ? 0 : undefined,
       imageUrls: image && /^https?:/i.test(image) ? [image] : [],
       url: href.startsWith('http') ? href : `https://www.kijiji.ca/v-view-details.html?adId=${id}`,
+      expiresAt: expiresInDays !== undefined ? expiresAtFromDaysRemaining(expiresInDays) : undefined,
       views,
       searchPage,
     })

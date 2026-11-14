@@ -1,6 +1,13 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core'
 import { FormsModule } from '@angular/forms'
-import { getListingStats, getStaleListings, isAvailableForRefresh, isListingStale } from '../shared/stale'
+import {
+  formatRefreshQuota,
+  getListingStats,
+  getStaleListings,
+  hasRefreshQuota,
+  isAvailableForRefresh,
+  isListingStale,
+} from '../shared/stale'
 import type { Listing, PlatformId } from '../shared/types'
 import { ButtonComponent } from '../ui/button.component'
 import { ListingActionsService } from '../ui/listing-actions.service'
@@ -52,7 +59,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const now = this.now()
     const filter = this.filter()
     const matchesFilter = (listing: Listing) => {
-      if (filter === 'available') return isAvailableForRefresh(listing)
+      if (filter === 'available') return isAvailableForRefresh(listing, settings, now)
       if (filter === 'stale') return isListingStale(listing, settings, now)
       return true
     }
@@ -71,6 +78,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
       { label: 'All', value: stats.total, className: 'text-slate-900' },
     ]
   })
+
+  readonly refreshQuotaLabel = computed(() => formatRefreshQuota(this.settings(), this.now()))
+  readonly canRefreshMore = computed(() => hasRefreshQuota(this.settings(), this.now()))
 
   private handleHashChange = () => {
     this.filter.set(getFilterFromHash())
@@ -115,7 +125,18 @@ export class DashboardComponent implements OnInit, OnDestroy {
   handleRefreshAllStale() {
     const stale = this.staleListings()
     void this.runAction(async () => {
-      for (const listing of stale) await this.actions.refreshListing(listing, this.settings(), this.now())
+      let started = 0
+      for (const listing of stale) {
+        try {
+          await this.actions.refreshListing(listing, this.settings(), Date.now())
+          started += 1
+        } catch (error) {
+          if (started === 0) throw error
+          throw new Error(
+            `Started ${started} refresh${started === 1 ? '' : 'es'}, then stopped: ${this.actions.getErrorMessage(error)}`,
+          )
+        }
+      }
     }, `Refreshing ${stale.length} listing${stale.length === 1 ? '' : 's'}`)
   }
 

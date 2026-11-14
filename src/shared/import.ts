@@ -1,4 +1,5 @@
 import { MAX_IMAGES } from './constants'
+import { resolveOriginalPostedAt } from './kijiji-dates'
 import { createEmptyPosts } from './listing'
 import type { ImportedAd, ImportSummary, Listing, PlatformId } from './types'
 
@@ -20,7 +21,11 @@ const findMatchingListing = (listings: Listing[], ad: ImportedAd) => {
 
 export const createListingFromImport = (ad: ImportedAd): Listing => {
   const now = Date.now()
-  const postedAt = ad.postedAt ?? now
+  const postedAt = resolveOriginalPostedAt({
+    expiresAt: ad.expiresAt,
+    postedAt: ad.postedAt,
+    now,
+  })
   const posts = createEmptyPosts()
   posts[ad.platform] = {
     platform: ad.platform,
@@ -28,6 +33,7 @@ export const createListingFromImport = (ad: ImportedAd): Listing => {
     url: ad.url,
     originalPostedAt: postedAt,
     postedAt,
+    expiresAt: ad.expiresAt,
     views: ad.views,
     searchPage: ad.searchPage,
   }
@@ -81,8 +87,16 @@ export const mergeImportedAds = (
           platform: ad.platform,
           status: 'posted',
           url: ad.url,
-          originalPostedAt: existingPost.originalPostedAt ?? existingPost.postedAt ?? ad.postedAt,
+          // Keep the first known original day; only derive from Expires when we have never stored one.
+          originalPostedAt:
+            existingPost.originalPostedAt ??
+            resolveOriginalPostedAt({
+              expiresAt: ad.expiresAt ?? existingPost.expiresAt,
+              existing: existingPost.postedAt,
+              postedAt: ad.postedAt,
+            }),
           postedAt: existingPost.postedAt ?? ad.postedAt ?? Date.now(),
+          expiresAt: ad.expiresAt ?? existingPost.expiresAt,
           lastRefreshedAt: existingPost.lastRefreshedAt,
           lastRemindedAt: existingPost.lastRemindedAt,
           views: ad.views ?? existingPost.views,

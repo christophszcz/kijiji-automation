@@ -1,66 +1,88 @@
-<form (submit)="handleSubmit($event)" class="max-w-xl rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-6">
-  <h2 class="text-lg font-semibold text-slate-900">Stale listing reminders</h2>
-  <p class="mt-1 text-sm text-slate-500">
-    Listings sink in search results as they age. ListSync flags them and reminds you to refresh.
-  </p>
+<form (submit)="handleSubmit($event)" class="mx-auto flex max-w-xl flex-col gap-6">
+  <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-6">
+    <h2 class="text-lg font-semibold text-slate-900">Kijiji membership</h2>
+    <p class="mt-1 text-sm text-slate-500">
+      Free members can refresh 3 ads per day. Kijiji Plus (K+) members can refresh all of their ads.
+    </p>
 
-  <div class="mt-6 flex flex-col gap-5">
-    <label class="flex flex-col gap-2 text-sm text-slate-700 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-      <span>
-        <span class="block font-medium">Mark listings stale after</span>
-        <span class="text-slate-500">Days since posting or the last refresh</span>
-      </span>
-      <span class="flex items-center gap-2">
+    <fieldset class="mt-5 flex flex-col gap-3">
+      <legend class="sr-only">Membership</legend>
+      <label class="flex cursor-pointer items-start gap-3 rounded-xl p-3 ring-1 ring-slate-200 has-[:checked]:bg-indigo-50 has-[:checked]:ring-indigo-300">
         <input
-          type="number"
-          min="1"
-          max="60"
-          [class]="inputClass"
-          [ngModel]="draft().staleAfterDays"
-          (ngModelChange)="updateDraft({ staleAfterDays: $event })"
-          name="staleAfterDays"
+          type="radio"
+          name="membership"
+          value="free"
+          class="mt-1 h-4 w-4 border-slate-300 text-indigo-600"
+          [ngModel]="draft().membership"
+          (ngModelChange)="updateDraft({ membership: $event })"
         />
-        days
-      </span>
-    </label>
-
-    <label class="flex flex-col gap-2 text-sm text-slate-700 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-      <span>
-        <span class="block font-medium">Check every</span>
-        <span class="text-slate-500">How often ListSync looks for stale listings</span>
-      </span>
-      <span class="flex items-center gap-2">
+        <span>
+          <span class="block text-sm font-medium text-slate-900">Free</span>
+          <span class="text-xs text-slate-500">Up to 3 ad refreshes per day</span>
+        </span>
+      </label>
+      <label class="flex cursor-pointer items-start gap-3 rounded-xl p-3 ring-1 ring-slate-200 has-[:checked]:bg-indigo-50 has-[:checked]:ring-indigo-300">
         <input
-          type="number"
-          min="1"
-          max="24"
-          [class]="inputClass"
-          [ngModel]="draft().checkIntervalHours"
-          (ngModelChange)="updateDraft({ checkIntervalHours: $event })"
-          name="checkIntervalHours"
+          type="radio"
+          name="membership"
+          value="k_plus"
+          class="mt-1 h-4 w-4 border-slate-300 text-indigo-600"
+          [ngModel]="draft().membership"
+          (ngModelChange)="updateDraft({ membership: $event })"
         />
-        hours
-      </span>
-    </label>
+        <span>
+          <span class="block text-sm font-medium text-slate-900">Kijiji Plus (K+)</span>
+          <span class="text-xs text-slate-500">Refresh all of your ads with no daily limit</span>
+        </span>
+      </label>
+    </fieldset>
+  </section>
 
-    <label class="flex items-center justify-between gap-4 text-sm text-slate-700">
-      <span>
-        <span class="block font-medium">Desktop notifications</span>
-        <span class="text-slate-500">At most one reminder per listing per day</span>
-      </span>
-      <input
-        type="checkbox"
-        role="switch"
-        class="h-5 w-5 shrink-0 rounded border-slate-300 text-indigo-600"
-        [ngModel]="draft().remindersEnabled"
-        (ngModelChange)="updateDraft({ remindersEnabled: $event })"
-        name="remindersEnabled"
-      />
-    </label>
-  </div>
+  <section class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-6">
+    <h2 class="text-lg font-semibold text-slate-900">Never-refreshed reminders</h2>
+    <p class="mt-1 text-sm text-slate-500">
+      ListSync flags Kijiji ads that have never been refreshed and can remind you to bump them.
+    </p>
 
-  <div class="mt-8 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
-    <app-button className="w-full sm:w-auto" (click)="handleCheckNow()">Check now</app-button>
-    <app-button className="w-full sm:w-auto" type="submit" variant="primary">Save settings</app-button>
-  </div>
+    <div class="mt-6 flex flex-col gap-5">
+      <label class="flex flex-col gap-2 text-sm text-slate-700 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <span>
+          <span class="block font-medium">Check every</span>
+          <span class="text-slate-500">How often ListSync looks for never-refreshed ads</span>
+        </span>
+        <span class="flex items-center gap-2">
+          <input
+            type="number"
+            min="1"
+            max="24"
+            [class]="inputClass"
+            [ngModel]="draft().checkIntervalHours"
+            (ngModelChange)="updateDraft({ checkIntervalHours: $event })"
+            name="checkIntervalHours"
+          />
+          hours
+        </span>
+      </label>
+
+      <label class="flex items-center justify-between gap-4 text-sm text-slate-700">
+        <span>
+          <span class="block font-medium">Desktop notifications</span>
+          <span class="text-slate-500">At most one reminder per listing per day</span>
+        </span>
+        <input
+          type="checkbox"
+          role="switch"
+          class="h-5 w-5 shrink-0 rounded border-slate-300 text-indigo-600"
+          [ngModel]="draft().remindersEnabled"
+          (ngModelChange)="updateDraft({ remindersEnabled: $event })"
+          name="remindersEnabled"
+        />
+      </label>
+    </div>
+
+    <div class="mt-8 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+      <app-button className="w-full sm:w-auto" (click)="handleCheckNow()">Check now</app-button>
+      <app-button className="w-full sm:w-auto" type="submit" variant="primary">Save settings</app-button>
+    </div>
+  </section>
 </form>

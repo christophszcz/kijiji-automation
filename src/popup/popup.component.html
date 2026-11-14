@@ -15,7 +15,7 @@
 
   @if (staleListings().length > 0) {
     <section aria-label="Stale listings">
-      <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700">Stale</h2>
+      <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700">Never refreshed</h2>
       <ul class="flex flex-col gap-1.5">
         @for (listing of visibleStale(); track listing.id) {
           <li class="flex items-center gap-2 rounded-lg bg-amber-50 px-2.5 py-2">

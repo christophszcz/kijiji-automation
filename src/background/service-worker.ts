@@ -1,15 +1,19 @@
-import { DAY_MS, PLATFORMS } from '../shared/constants'
+import { DAY_MS, FREE_DAILY_REFRESH_LIMIT, KIJIJI_AD_DURATION_DAYS, PLATFORMS } from '../shared/constants'
+import { startOfLocalDay } from '../shared/format'
+import { expiresAtFromDaysRemaining, resolveOriginalPostedAt } from '../shared/kijiji-dates'
 import { pickImageList } from '../shared/images'
 import { mergeImportedAds } from '../shared/import'
 import { mapPosts, withPost } from '../shared/listing'
 import type { Message, MessageResponse } from '../shared/messages'
-import { getStaleListings, getStalePosts } from '../shared/stale'
+import { getStaleListings, getStalePosts, hasRefreshQuota } from '../shared/stale'
 import {
   LISTINGS_KEY,
   SETTINGS_KEY,
   findListing,
   getListings,
   getSettings,
+  refundRefreshUsage,
+  reserveRefreshUsage,
   saveListings,
   updateListing,
   updateListings,
@@ -61,7 +65,7 @@ const runStaleCheck = async ({ isForced = false } = {}) => {
   await chrome.notifications.create(REMINDER_NOTIFICATION_ID, {
     type: 'basic',
     iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
-    title: `${dueListings.length} listing${dueListings.length === 1 ? ' is' : 's are'} getting stale`,
+    title: `${dueListings.length} listing${dueListings.length === 1 ? ' has' : 's have'} never been refreshed`,
     message: [...titles, moreCount > 0 ? `…and ${moreCount} more` : ''].filter(Boolean).join('\n'),
     buttons: [{ title: 'Review & refresh' }, { title: 'Snooze 1 day' }],
     priority: 1,
@@ -156,27 +160,45 @@ const startJobs = async (type: JobType, listingId: string, platforms: PlatformId
   if (!listing) throw new Error('Listing not found')
   if (platforms.length === 0) throw new Error('Choose at least one marketplace')
 
+  const settings = await getSettings()
+  const kijijiRefresh = type === 'refresh' && platforms.includes('kijiji')
+  if (kijijiRefresh && !hasRefreshQuota(settings)) {
+    throw new Error(
+      `Free Kijiji members can refresh only ${FREE_DAILY_REFRESH_LIMIT} ads per day. Switch to K+ in Settings, or try again tomorrow.`,
+    )
+  }
+
   for (const [index, platform] of platforms.entries()) {
     const post = listing.posts[platform]
     if (type === 'refresh' && platform === 'kijiji' && !post.url && !listing.externalIds?.kijiji) {
       throw new Error('This Kijiji ad has no saved URL yet. Sync your ads first, then refresh.')
     }
-    const staleJobs = await removeJobs((job) => job.listingId === listingId && job.platform === platform)
-    const previousStatus = staleJobs[0]?.previousStatus ?? (post.status === 'pending' ? 'not_posted' : post.status)
-    const isAutomatic = type === 'refresh' && platform === 'kijiji'
-    const tab = await chrome.tabs.create({ url: resolveJobUrl(type, platform, listing, post.url), active: !isAutomatic && index === 0 })
-    if (tab.id === undefined) continue
-    await saveJob({
-      id: crypto.randomUUID(),
-      type,
-      listingId,
-      platform,
-      tabId: tab.id,
-      createdAt: Date.now(),
-      previousUrl: post.url,
-      previousStatus,
-    })
-    await updatePost(listingId, platform, { status: 'pending', error: undefined })
+    const reservedRefresh = type === 'refresh' && platform === 'kijiji'
+    if (reservedRefresh) await reserveRefreshUsage()
+    try {
+      const staleJobs = await removeJobs((job) => job.listingId === listingId && job.platform === platform)
+      const previousStatus = staleJobs[0]?.previousStatus ?? (post.status === 'pending' ? 'not_posted' : post.status)
+      const isAutomatic = type === 'refresh' && platform === 'kijiji'
+      const tab = await chrome.tabs.create({ url: resolveJobUrl(type, platform, listing, post.url), active: !isAutomatic && index === 0 })
+      if (tab.id === undefined) {
+        if (reservedRefresh) await refundRefreshUsage()
+        continue
+      }
+      await saveJob({
+        id: crypto.randomUUID(),
+        type,
+        listingId,
+        platform,
+        tabId: tab.id,
+        createdAt: Date.now(),
+        previousUrl: post.url,
+        previousStatus,
+      })
+      await updatePost(listingId, platform, { status: 'pending', error: undefined })
+    } catch (error) {
+      if (reservedRefresh) await refundRefreshUsage()
+      throw error
+    }
   }
   return null
 }
@@ -199,6 +221,7 @@ const completeJob = async (tabId: number | undefined, result: JobResultMessage) 
   const isAutomatic = job.type === 'refresh' && job.platform === 'kijiji'
 
   if (result.status === 'failed') {
+    if (isAutomatic) await refundRefreshUsage()
     await updatePost(job.listingId, job.platform, { status: 'failed', error: result.error })
     if (isAutomatic) {
       await chrome.tabs.update(tabId, { active: true }).catch(() => undefined)
@@ -211,14 +234,24 @@ const completeJob = async (tabId: number | undefined, result: JobResultMessage) 
   await updateListing(job.listingId, (listing) => {
     const post = listing.posts[job.platform]
     const isRefresh = job.type === 'refresh' && (post.postedAt !== undefined || post.originalPostedAt !== undefined)
-    const originalPostedAt = post.originalPostedAt ?? post.postedAt ?? (isRefresh ? undefined : now)
+    const expiresAt =
+      job.platform === 'kijiji' ? expiresAtFromDaysRemaining(KIJIJI_AD_DURATION_DAYS, now) : post.expiresAt
+    const originalPostedAt =
+      post.originalPostedAt !== undefined
+        ? startOfLocalDay(post.originalPostedAt)
+        : resolveOriginalPostedAt({
+            expiresAt,
+            postedAt: post.postedAt,
+            now,
+          })
     return {
       ...withPost(listing, job.platform, {
         platform: job.platform,
         status: 'posted',
         url: result.url,
-        originalPostedAt: originalPostedAt ?? now,
-        postedAt: isRefresh ? (post.postedAt ?? originalPostedAt ?? now) : now,
+        originalPostedAt,
+        postedAt: isRefresh ? (post.postedAt ?? originalPostedAt) : now,
+        expiresAt,
         lastRefreshedAt: isRefresh ? now : undefined,
         views: isRefresh ? 0 : post.views,
         searchPage: isRefresh ? 1 : post.searchPage,
@@ -246,6 +279,7 @@ const cancelJob = async (tabId?: number, error?: string) => {
   if (tabId === undefined) return null
   const job = await removeJob(tabId)
   if (!job) return null
+  if (job.type === 'refresh' && job.platform === 'kijiji') await refundRefreshUsage()
   await updatePost(job.listingId, job.platform, { status: job.previousStatus, error })
   if (error) await notifyRefreshProblem(job.listingId, `${error}. Your ad was not deleted.`)
   return null

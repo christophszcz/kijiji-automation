@@ -35,14 +35,25 @@
         }
       </section>
 
+      <div class="mt-4 rounded-2xl bg-white px-4 py-3 text-sm text-slate-600 ring-1 ring-slate-200 sm:px-5">
+        {{ refreshQuotaLabel() }}
+      </div>
+
       @if (staleListings().length > 0) {
         <div class="mt-4 flex flex-col gap-3 rounded-2xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-5">
           <p class="text-sm text-amber-900">
             <strong>{{ staleListings().length }}</strong>
-            listing{{ staleListings().length === 1 ? ' has' : 's have' }} been up for {{ settings().staleAfterDays }}+ days and may be buried in
-            search results.
+            listing{{ staleListings().length === 1 ? ' has' : 's have' }} never been refreshed.
           </p>
-          <app-button className="w-full sm:w-auto" variant="warning" size="sm" (click)="handleRefreshAllStale()">↻ Refresh all stale</app-button>
+          <app-button
+            className="w-full sm:w-auto"
+            variant="warning"
+            size="sm"
+            [disabled]="!canRefreshMore()"
+            (click)="handleRefreshAllStale()"
+          >
+            ↻ Refresh all stale
+          </app-button>
         </div>
       }
 

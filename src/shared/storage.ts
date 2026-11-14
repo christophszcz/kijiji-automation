@@ -1,4 +1,5 @@
 import { DEFAULT_SETTINGS } from './constants'
+import { getRefreshUsageCount, localDayKey } from './stale'
 import type { Listing, PlatformId, PlatformPost, Settings } from './types'
 import { withPost } from './listing'
 
@@ -42,7 +43,41 @@ export const deleteListing = async (id: string) => {
 
 export const getSettings = async (): Promise<Settings> => {
   const result = await chrome.storage.local.get(SETTINGS_KEY)
-  return { ...DEFAULT_SETTINGS, ...(result[SETTINGS_KEY] as Partial<Settings> | undefined) }
+  const stored = (result[SETTINGS_KEY] as Partial<Settings> | undefined) ?? {}
+  return {
+    ...DEFAULT_SETTINGS,
+    ...stored,
+    membership: stored.membership === 'k_plus' ? 'k_plus' : 'free',
+  }
 }
 
 export const saveSettings = (settings: Settings) => chrome.storage.local.set({ [SETTINGS_KEY]: settings })
+
+/** Reserves one free-member daily refresh slot. No-op for K+. */
+export const reserveRefreshUsage = async (now = Date.now()) => {
+  const settings = await getSettings()
+  if (settings.membership === 'k_plus') return settings
+  const day = localDayKey(now)
+  const next: Settings = {
+    ...settings,
+    refreshUsageDay: day,
+    refreshUsageCount: getRefreshUsageCount(settings, now) + 1,
+  }
+  await saveSettings(next)
+  return next
+}
+
+/** Returns a reserved free-member slot when a refresh fails or is cancelled. */
+export const refundRefreshUsage = async (now = Date.now()) => {
+  const settings = await getSettings()
+  if (settings.membership === 'k_plus') return settings
+  const day = localDayKey(now)
+  if (settings.refreshUsageDay !== day) return settings
+  const next: Settings = {
+    ...settings,
+    refreshUsageDay: day,
+    refreshUsageCount: Math.max(0, (settings.refreshUsageCount ?? 0) - 1),
+  }
+  await saveSettings(next)
+  return next
+}
