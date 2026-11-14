@@ -1,5 +1,5 @@
 import { PLATFORMS } from '../shared/constants'
-import { mergeImageLists } from '../shared/images'
+import { pickImageList } from '../shared/images'
 import { sendMessage } from '../shared/messages'
 import type { JobContext, Listing } from '../shared/types'
 import type { Banner } from './banner'
@@ -84,9 +84,9 @@ const captureFromEditSources = async (adId: string, listing: Listing, previousUr
     formFields: { ...fromEditFetch?.formFields, ...primary.formFields },
     labeledFields: { ...fromEditFetch?.labeledFields, ...primary.labeledFields },
     tags: parseKijijiTags(primary.tags, fromEditFetch?.tags, fromAccount?.tags, fromPage?.tags, listing.kijiji?.tags),
-    // Prefer Kijiji's own gallery order (account / view page / saved listing),
-    // then fill any missing photos from the edit-page scrape without reshuffling.
-    images: mergeImageLists(fromAccount?.images, fromPage?.images, listing.images, primary.images),
+    // The edit page is the only source with the full ordered gallery; the account feed and
+    // public ad page only expose the cover thumbnail.
+    images: pickImageList(primary.images, fromEditFetch?.images, fromAccount?.images, fromPage?.images, listing.images),
     url:
       primary.url ||
       fromPage?.url ||
@@ -96,7 +96,7 @@ const captureFromEditSources = async (adId: string, listing: Listing, previousUr
       `https://www.kijiji.ca/v-view-details.html?adId=${adId}`,
   })
 
-  return primary.images.some((image) => image.startsWith('data:')) ? merged : hydrateSnapshotImages(merged)
+  return hydrateSnapshotImages(merged)
 }
 
 const beginRepost = async (banner: Banner, categoryId?: string): Promise<RefreshOutcome> => {

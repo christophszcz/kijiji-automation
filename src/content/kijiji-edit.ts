@@ -1,16 +1,11 @@
-import { MAX_IMAGES } from '../shared/constants'
-import { mergeImageLists } from '../shared/images'
+import { pickImageList } from '../shared/images'
 import { delay, isVisible, waitFor } from './dom'
-import {
-  extractKijijiAdId,
-  hydrateSnapshotImages,
-  parseKijijiPrice,
-  type KijijiAdSnapshot,
-} from './kijiji-api'
+import { extractKijijiAdId, parseKijijiPrice, type KijijiAdSnapshot } from './kijiji-api'
 import { parseKijijiTags, scrapeKijijiTagsFromDom, scrapeKijijiTagsFromHtml, tagsFromFormFields } from './kijiji-tags'
 
 const EDIT_FORM_TIMEOUT_MS = 45_000
-const SKIP_FIELD_NAMES = /xsrf|csrf|fraud|token|password|submittype|adid|^file$|uuid|galleryimageindex/i
+// Photos are re-uploaded through the uploader; copying the `images` field would attach them a second time.
+const SKIP_FIELD_NAMES = /xsrf|csrf|fraud|token|password|submittype|adid|^file$|uuid|galleryimageindex|^images(\[\])?$/i
 
 export const getKijijiEditUrl = (adId: string) => `https://www.kijiji.ca/p-edit-ad.html?adId=${encodeURIComponent(adId)}`
 
@@ -70,11 +65,37 @@ const attributeNameFromFormName = (name: string) => {
   return match?.[1]
 }
 
+const backgroundImageUrl = (element: Element | null) =>
+  /url\(["']?(https?:[^"')]+)["']?\)/i.exec(element?.getAttribute('style') || '')?.[1]
+
+/**
+ * Kijiji's edit form lists the ad's photos in order as `#UploadedImages li[data-image-id]`.
+ * The same photo can be rendered twice (ids `1` and `1-uploaded`), so dedupe by data-image-id.
+ */
+const scrapeEditPagePhotos = (root: ParentNode) => {
+  const seenIds = new Set<string>()
+  const gallery: string[] = []
+  root.querySelectorAll<HTMLElement>('#UploadedImages li[data-image-id], #MediaUploadedImages li[data-image-id]').forEach((item) => {
+    const id = item.getAttribute('data-image-id') ?? ''
+    if (seenIds.has(id)) return
+    const image = item.querySelector<HTMLElement>('[data-large-url]') ?? item.querySelector<HTMLElement>('.image')
+    const url = image?.getAttribute('data-large-url') || backgroundImageUrl(image)
+    if (!url) return
+    seenIds.add(id)
+    gallery.push(url)
+  })
+
+  const hiddenInputs = [...root.querySelectorAll<HTMLInputElement>('input[type="hidden"][name="images"]')]
+    .map((input) => input.value.trim())
+    .filter((value) => /^https?:/i.test(value))
+
+  return pickImageList(gallery, hiddenInputs)
+}
+
 export const scrapeKijijiEditFormFromDom = () => {
   const formFields: Record<string, string> = {}
   const labeledFields: Record<string, string> = {}
   const attributes: Record<string, string> = {}
-  const images: string[] = []
 
   document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('input, textarea, select').forEach((element) => {
     const name = element.name || element.id
@@ -119,79 +140,6 @@ export const scrapeKijijiEditFormFromDom = () => {
       if (key) remember(attributes, key, value)
     })
 
-  const pushImage = (target: string[], value?: string | null) => {
-    if (!value) return
-    value
-      .split(/[\s,]+/)
-      .map((part) => part.trim())
-      .filter((part) => /^https?:/i.test(part) || part.startsWith('data:'))
-      .forEach((url) => {
-        if (/logo|icon|avatar|sprite|placeholder|emoji|pixel|data:image\/svg/i.test(url)) return
-        if (!target.includes(url)) target.push(url)
-      })
-  }
-
-  const readImageElement = (image: HTMLImageElement, target: string[]) => {
-    pushImage(target, image.currentSrc || image.src)
-    pushImage(target, image.getAttribute('data-src'))
-    pushImage(target, image.getAttribute('data-url'))
-    pushImage(target, image.getAttribute('data-original'))
-    const srcset = image.getAttribute('srcset')
-    if (srcset) {
-      // Prefer the largest descriptor, but keep a single URL per <img> slot
-      const candidates = srcset
-        .split(',')
-        .map((entry) => {
-          const [url, size = '0'] = entry.trim().split(/\s+/)
-          return { url, size: Number.parseInt(size, 10) || 0 }
-        })
-        .filter((entry) => entry.url)
-      candidates.sort((a, b) => b.size - a.size)
-      if (candidates[0]) pushImage(target, candidates[0].url)
-    }
-  }
-
-  const galleryImages: string[] = []
-  const galleryRoots = [
-    ...document.querySelectorAll<HTMLElement>(
-      '[class*="gallery" i], [class*="uploader" i], [class*="photo-list" i], [class*="image-list" i], [data-testid*="image" i], [data-testid*="photo" i]',
-    ),
-  ]
-  const galleryScope = galleryRoots.length > 0 ? galleryRoots : [document.body]
-  galleryScope.forEach((root) => {
-    root.querySelectorAll<HTMLImageElement>('img').forEach((image) => readImageElement(image, galleryImages))
-  })
-
-  const otherImages: string[] = []
-  document.querySelectorAll<HTMLImageElement>('img').forEach((image) => readImageElement(image, otherImages))
-
-  document.querySelectorAll<HTMLElement>('[style*="background"]').forEach((element) => {
-    const background = /url\(["']?(https?:[^"')]+)["']?\)/i.exec(element.getAttribute('style') || '')?.[1]
-    pushImage(otherImages, background)
-  })
-
-  const hiddenImages =
-    formFields.images ||
-    formFields['postAdForm.images'] ||
-    formFields['postAdForm.imageUrls'] ||
-    formFields['images[]'] ||
-    ''
-  const orderedHidden: string[] = []
-  pushImage(orderedHidden, hiddenImages)
-
-  const jsonImages: string[] = []
-  for (const script of document.querySelectorAll('script[type="application/json"], script#__NEXT_DATA__')) {
-    const text = script.textContent || ''
-    for (const match of text.matchAll(/"imageUrls"\s*:\s*\[([^\]]+)\]/gi)) {
-      for (const urlMatch of match[1].matchAll(/"(https?:[^"]+)"/gi)) pushImage(jsonImages, urlMatch[1])
-    }
-    for (const match of text.matchAll(/https?:\\\/\\\/[^"\\]+?\.(?:jpg|jpeg|png|webp)/gi)) {
-      pushImage(jsonImages, match[0].replace(/\\\//g, '/'))
-    }
-  }
-
-  // Keep gallery/DOM order first; only append extras from weaker sources.
-  images.push(...mergeImageLists(orderedHidden, galleryImages, jsonImages, otherImages))
   const tags = parseKijijiTags(scrapeKijijiTagsFromDom(), tagsFromFormFields(formFields, attributes))
 
   return {
@@ -199,7 +147,7 @@ export const scrapeKijijiEditFormFromDom = () => {
     labeledFields,
     attributes,
     tags,
-    images: images.slice(0, MAX_IMAGES),
+    images: scrapeEditPagePhotos(document),
   }
 }
 
@@ -255,21 +203,7 @@ const parseFormFieldsFromHtml = (html: string) => {
   return { formFields, attributes }
 }
 
-const extractImagesFromHtml = (html: string) => {
-  const images: string[] = []
-  const patterns = [
-    /property="og:image"\s+content="([^"]+)"/gi,
-    /"(?:thumbnailUrl|imageUrl|url|src)"\s*:\s*"(https?:[^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/gi,
-    /value="(https?:[^"]+)"[^>]*name="[^"]*image/gi,
-  ]
-  for (const pattern of patterns) {
-    for (const match of html.matchAll(pattern)) {
-      const url = decodeHtml(match[1])
-      if (/^https?:/i.test(url) && !images.includes(url)) images.push(url)
-    }
-  }
-  return mergeImageLists(images).slice(0, MAX_IMAGES)
-}
+const extractImagesFromHtml = (html: string) => scrapeEditPagePhotos(new DOMParser().parseFromString(html, 'text/html'))
 
 const snapshotFromFormFields = (
   adId: string,
@@ -396,8 +330,8 @@ export const captureKijijiEditPageSnapshot = async (adId: string, pageUrl = loca
   )
   if (!snapshot.title) throw new Error('Could not read the title from Kijiji’s edit-ad page')
   if (snapshot.description.length < 5) throw new Error('Could not read the description from Kijiji’s edit-ad page')
-  return hydrateSnapshotImages({
+  return {
     ...snapshot,
     externalId: extractKijijiAdId(pageUrl) || adId,
-  })
+  }
 }

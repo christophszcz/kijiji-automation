@@ -60,7 +60,6 @@ export const attachImages = (input: HTMLInputElement, images: string[]) => {
   const transfer = new DataTransfer()
   images.forEach((image, index) => transfer.items.add(dataUrlToFile(image, `photo-${index + 1}.jpg`)))
   input.files = transfer.files
-  input.dispatchEvent(new Event('input', { bubbles: true }))
   input.dispatchEvent(new Event('change', { bubbles: true }))
 }
 

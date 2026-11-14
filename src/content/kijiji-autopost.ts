@@ -6,7 +6,8 @@ import { fillKijijiTags, parseKijijiTags, tagsFromFormFields } from './kijiji-ta
 type StatusReporter = (text: string) => void
 
 const FORM_TIMEOUT_MS = 30_000
-const PHOTO_UPLOAD_TIMEOUT_MS = 45_000
+const PHOTO_UPLOAD_TIMEOUT_MS = 120_000
+const PER_PHOTO_UPLOAD_TIMEOUT_MS = 60_000
 const DROPDOWN_TIMEOUT_MS = 8_000
 
 const CONDITION_VALUES: Record<ItemCondition, string[]> = {
@@ -121,11 +122,15 @@ const isUnsetSelect = (select: HTMLSelectElement) => {
   return !option.value || /^(select|choose|pick|--|please)/i.test(text)
 }
 
+// Photo uploader ("Select Images" opens a file picker) and tag suggestions are not attribute dropdowns.
+const NON_DROPDOWN_AREAS = '#MediaImageUpload, #FileInputWrapper, .moxie-shim, [class*="tagsSuggestion" i], [class*="tags" i], [id*="tags" i]'
+
 const dropdownTriggers = () =>
   [...document.querySelectorAll<HTMLElement>('button, [role="combobox"], [aria-haspopup="listbox"], [aria-haspopup="menu"], [data-testid*="select" i]')].filter(
     (element) => {
       if (!(element instanceof HTMLElement) || !isVisible(element)) return false
       if (element instanceof HTMLButtonElement && element.type === 'submit') return false
+      if (element.closest(NON_DROPDOWN_AREAS)) return false
       const text = `${element.textContent ?? ''} ${labelText(element)}`.trim()
       return (
         element.getAttribute('aria-haspopup') === 'listbox' ||
@@ -151,8 +156,10 @@ const openDropdownOptions = async (trigger: HTMLElement) => {
   await delay(250)
   const options = await waitFor(() => {
     const found = [
-      ...document.querySelectorAll<HTMLElement>('[role="option"], [role="menuitem"], [role="listbox"] li, ul[role="listbox"] li, [class*="option" i], [class*="menu" i] li'),
-    ].filter((option) => isVisible(option) && (option.textContent ?? '').trim().length > 0)
+      ...document.querySelectorAll<HTMLElement>(
+        '[role="option"], [role="menuitem"], [role="listbox"] li, ul[role="listbox"] li, [class*="option" i]:not([class*="optional" i]), [class*="menu" i] li',
+      ),
+    ].filter((option) => isVisible(option) && !option.closest(NON_DROPDOWN_AREAS) && (option.textContent ?? '').trim().length > 0)
     return found.length > 0 ? found : null
   }, DROPDOWN_TIMEOUT_MS, 150)
   return options ?? []
@@ -319,35 +326,76 @@ const acceptTerms = () => {
   })
 }
 
-const countUploadedPhotos = () => {
-  const previews = document.querySelectorAll('[class*="image" i] img, [class*="photo" i] img, [class*="thumbnail" i] img, [data-testid*="image" i] img')
-  return [...previews].filter((img) => isVisible(img) && !/placeholder|icon|logo/i.test((img as HTMLImageElement).src)).length
+const PHOTO_SLOT_SELECTOR = '#MediaUploadedImages li.thumbnail[data-image-id], #UploadedImages li.thumbnail[data-image-id]'
+
+const uniquePhotoSlots = (selector: string) =>
+  new Set([...document.querySelectorAll<HTMLElement>(selector)].map((item) => item.getAttribute('data-image-id'))).size
+
+/** Kijiji adds `li.thumbnail.uploading` as soon as a photo is queued and drops `.uploading` once the upload finishes. */
+const countUploadedPhotos = () =>
+  uniquePhotoSlots(PHOTO_SLOT_SELECTOR.split(', ').map((selector) => `${selector}:not(.uploading)`).join(', '))
+
+const countPendingPhotos = () => uniquePhotoSlots(PHOTO_SLOT_SELECTOR.split(', ').map((selector) => `${selector}.uploading`).join(', '))
+
+const waitForPhotoUploadsToFinish = async (report: StatusReporter) => {
+  if (countPendingPhotos() === 0) return
+  report(`Waiting for ${countPendingPhotos()} photo upload(s) to finish…`)
+  const finished = await waitFor(() => (countPendingPhotos() === 0 ? true : null), PHOTO_UPLOAD_TIMEOUT_MS, 500)
+  if (!finished) throw new KijijiAutoPostError('Kijiji is still uploading the photos — not posting an incomplete ad')
 }
 
+let isUploadingPhotos = false
+
 const uploadPhotos = async (images: string[], report: StatusReporter) => {
-  if (images.length === 0) return
+  if (images.length === 0 || isUploadingPhotos) return
+  isUploadingPhotos = true
+  try {
+    await attachMissingPhotos(images, report)
+  } finally {
+    isUploadingPhotos = false
+  }
+}
+
+const attachMissingPhotos = async (images: string[], report: StatusReporter) => {
+  const input = await waitFor(findImageInput, FORM_TIMEOUT_MS)
+  if (!input) throw new KijijiAutoPostError('Could not find the photo uploader on Kijiji’s form')
+
+  // A brand-new post form starts empty, so any photo already shown came from an earlier
+  // pass on this form (e.g. Kijiji re-rendering it after a submit) and must not be re-added.
+  await delay(1000)
+  const alreadyAttached = countUploadedPhotos() + countPendingPhotos()
+  if (alreadyAttached > 0) {
+    report(`Photos are already attached (${alreadyAttached}) — skipping upload…`)
+    return
+  }
+
   report(`Preparing ${images.length} photo${images.length === 1 ? '' : 's'}…`)
   const prepared = await resolveImagesForUpload(images)
   if (prepared.length === 0) throw new KijijiAutoPostError('Could not prepare the saved photos for upload')
-  const input = await waitFor(findImageInput, FORM_TIMEOUT_MS)
-  if (!input) throw new KijijiAutoPostError('Could not find the photo uploader on Kijiji’s form')
 
   try {
     await attachImagesSequentially(prepared, {
       findInput: findImageInput,
       countUploaded: countUploadedPhotos,
-      timeoutMs: Math.max(15_000, Math.floor(PHOTO_UPLOAD_TIMEOUT_MS / Math.max(prepared.length, 1))),
+      timeoutMs: PER_PHOTO_UPLOAD_TIMEOUT_MS,
       onProgress: (index, total) => report(`Uploading photo ${index} of ${total}…`),
     })
   } catch (error) {
     throw new KijijiAutoPostError(error instanceof Error ? error.message : 'Photo upload failed')
   }
 
-  const uploaded = countUploadedPhotos()
-  if (uploaded < prepared.length) {
-    report(`Uploaded ${uploaded} of ${prepared.length} photos — waiting a moment…`)
-    await delay(3000)
-  }
+  await waitForPhotoUploadsToFinish(report)
+  const attached = countUploadedPhotos()
+  if (attached >= prepared.length) return
+
+  report(`Only ${attached} of ${prepared.length} photos landed — retrying the rest…`)
+  await attachImagesSequentially(prepared.slice(attached), {
+    findInput: findImageInput,
+    countUploaded: countUploadedPhotos,
+    timeoutMs: PER_PHOTO_UPLOAD_TIMEOUT_MS,
+    onProgress: (index, total) => report(`Retrying photo ${attached + index} of ${attached + total}…`),
+  })
+  await waitForPhotoUploadsToFinish(report)
 }
 
 const isSelectCategoryPage = () => /select-category/i.test(location.pathname)
@@ -376,6 +424,7 @@ const findSubmitButton = () =>
 
 const collectErrors = () =>
   [...document.querySelectorAll<HTMLElement>('[role="alert"], [class*="error" i], [aria-invalid="true"]')]
+    .filter((element) => !(element instanceof HTMLInputElement && element.type === 'hidden') && isVisible(element))
     .map((element) => {
       const text = element.textContent?.trim() ?? ''
       const label = nearbyLabel(element)
@@ -414,6 +463,7 @@ const applyNamedFormFields = async (formFields: Record<string, string>, listing:
       continue
     }
     if (/featurePackage|featuresForm/i.test(name)) continue
+    if (/^(images(\[\])?|file|galleryImageIndex|postAdForm\.galleryImageIndex)$/i.test(name)) continue
     if (/tags?|keywords?/i.test(name)) continue
 
     const field = findFieldByName(name)
@@ -585,6 +635,7 @@ export const autoPostKijiji = async ({ listing, report }: KijijiAutoPostInput) =
   await ensureCorrectPrice(listing, report)
   if (tags.length > 0) await fillKijijiTags(tags, report)
   acceptTerms()
+  await waitForPhotoUploadsToFinish(report)
   await delay(500)
 
   const submit = findSubmitButton()

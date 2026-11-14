@@ -1,5 +1,5 @@
 import { MAX_IMAGES } from '../shared/constants'
-import { mergeImageLists } from '../shared/images'
+import { dedupeIdenticalImages, pickImageList, urlToDataUrl } from '../shared/images'
 import type { Listing } from '../shared/types'
 import { delay, isVisible } from './dom'
 import { parseKijijiTags, scrapeKijijiTagsFromHtml, tagsFromFormFields } from './kijiji-tags'
@@ -55,45 +55,32 @@ export const parseKijijiPrice = (value: unknown): number | undefined => {
   return record.type === 'FIXED' || amount >= 100 ? amount / 100 : amount
 }
 
+const firstString = (...values: unknown[]) => values.map(asString).find(Boolean)
+
+const toStringList = (values: unknown[]) => values.filter((value): value is string => Boolean(value) && typeof value === 'string')
+
 const collectImageUrls = (ad: Record<string, unknown>) => {
+  const imageUrls = Array.isArray(ad.imageUrls) ? toStringList(ad.imageUrls) : []
   const nestedImages = Array.isArray(ad.images)
-    ? ad.images.flatMap((image) => {
-        if (typeof image === 'string') return [image]
-        const record = asRecord(image)
-        return [
-          asString(record?.url),
-          asString(record?.href),
-          asString(record?.src),
-          asString(record?.thumbnailUrl),
-          asString(record?.largeUrl),
-          asString(record?.originalUrl),
-        ].filter(Boolean)
-      })
+    ? toStringList(
+        ad.images.map((image) => {
+          if (typeof image === 'string') return image
+          const record = asRecord(image)
+          return firstString(record?.originalUrl, record?.largeUrl, record?.url, record?.href, record?.src, record?.thumbnailUrl)
+        }),
+      )
     : []
   const pictureList = Array.isArray(ad.pictures)
-    ? ad.pictures.flatMap((picture) => {
-        if (typeof picture === 'string') return [picture]
-        const record = asRecord(picture)
-        const sizes = asRecord(record?.sizes) ?? asRecord(record?.urls)
-        return [
-          asString(record?.href),
-          asString(record?.url),
-          asString(record?.src),
-          asString(sizes?.large),
-          asString(sizes?.big),
-          asString(sizes?.normal),
-        ].filter(Boolean)
-      })
+    ? toStringList(
+        ad.pictures.map((picture) => {
+          if (typeof picture === 'string') return picture
+          const record = asRecord(picture)
+          const sizes = asRecord(record?.sizes) ?? asRecord(record?.urls)
+          return firstString(sizes?.large, sizes?.big, record?.href, record?.url, record?.src, sizes?.normal)
+        }),
+      )
     : []
-  const urls = [
-    ...(Array.isArray(ad.imageUrls) ? ad.imageUrls : []),
-    ...nestedImages,
-    ...pictureList,
-    ad.image,
-    ad.thumbnailUrl,
-    ad.imgUrl,
-  ]
-  return mergeImageLists(urls.map(asString).filter((url): url is string => Boolean(url)))
+  return pickImageList(imageUrls, nestedImages, pictureList, toStringList([ad.image ?? ad.thumbnailUrl ?? ad.imgUrl]))
 }
 
 const stripHtml = (value: string) =>
@@ -544,32 +531,20 @@ export const deleteKijijiAd = async (adId: string, title?: string) => {
   }
 }
 
-export const imageUrlToDataUrl = async (url: string): Promise<string> => {
-  const response = await fetch(url, { credentials: 'omit' })
-  if (!response.ok) throw new Error(`Could not download image (${response.status})`)
-  const blob = await response.blob()
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(new Error('Could not read image data'))
-    reader.readAsDataURL(blob)
-  })
-}
-
 export const hydrateSnapshotImages = async (snapshot: KijijiAdSnapshot): Promise<KijijiAdSnapshot> => {
   const images: string[] = []
-  for (const image of snapshot.images.slice(0, MAX_IMAGES)) {
+  for (const [index, image] of snapshot.images.slice(0, MAX_IMAGES).entries()) {
     if (image.startsWith('data:')) {
       images.push(image)
       continue
     }
     try {
-      images.push(await imageUrlToDataUrl(image))
+      images.push(await urlToDataUrl(image))
     } catch {
-      // keep going with the images we can download
+      throw new Error(`Could not download photo ${index + 1} of ${snapshot.images.length} from the original ad`)
     }
   }
-  return { ...snapshot, images }
+  return { ...snapshot, images: await dedupeIdenticalImages(images) }
 }
 
 export const mergeSnapshotWithListing = (listing: Listing, snapshot: KijijiAdSnapshot): KijijiAdSnapshot => ({
@@ -585,6 +560,6 @@ export const mergeSnapshotWithListing = (listing: Listing, snapshot: KijijiAdSna
   formFields: { ...listing.kijiji?.formFields, ...snapshot.formFields },
   labeledFields: { ...listing.kijiji?.labeledFields, ...snapshot.labeledFields },
   tags: parseKijijiTags(snapshot.tags, listing.kijiji?.tags),
-  images: mergeImageLists(snapshot.images, listing.images),
+  images: pickImageList(snapshot.images, listing.images),
   url: snapshot.url,
 })

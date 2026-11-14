@@ -1,3 +1,4 @@
+import { pickImageList } from '../shared/images'
 import { sendMessage } from '../shared/messages'
 import type { ImportedAd, ImportJob } from '../shared/types'
 import { delay } from './dom'
@@ -57,14 +58,13 @@ const firstDefinedCount = (...values: unknown[]) => {
 }
 
 const collectImageUrls = (ad: Record<string, unknown>) => {
-  const urls = [
-    ...(Array.isArray(ad.imageUrls) ? ad.imageUrls : []),
-    ...(Array.isArray(ad.images) ? ad.images : []),
-    ad.image,
-    ad.thumbnailUrl,
-    asRecord(Array.isArray(ad.images) ? ad.images[0] : null)?.url,
-  ]
-  return [...new Set(urls.map(asString).filter((url): url is string => Boolean(url && /^https?:/i.test(url))))]
+  const toUrls = (values: unknown[]) => values.map(asString).filter((url): url is string => Boolean(url))
+  const images = Array.isArray(ad.images) ? ad.images.map((image) => asString(image) ?? asRecord(image)?.url) : []
+  return pickImageList(
+    Array.isArray(ad.imageUrls) ? toUrls(ad.imageUrls) : [],
+    toUrls(images),
+    toUrls([ad.image ?? ad.thumbnailUrl]),
+  )
 }
 
 const nestedStat = (ad: Record<string, unknown>, keys: string[]) => {
