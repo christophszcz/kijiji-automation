@@ -55,7 +55,8 @@ export class PopupComponent {
     this.isSyncing.set(true)
     this.error.set(null)
     try {
-      await this.actions.importFromMarketplaces(['kijiji', 'facebook'])
+      const result = await this.actions.importFromMarketplaces(['kijiji'])
+      if (result?.message) this.error.set(null)
     } catch (syncError) {
       this.error.set(this.actions.getErrorMessage(syncError))
     } finally {

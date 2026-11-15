@@ -2,7 +2,8 @@ import { DAY_MS, FREE_DAILY_REFRESH_LIMIT, KIJIJI_AD_DURATION_DAYS, PLATFORMS } 
 import { startOfLocalDay } from '../shared/format'
 import { expiresAtFromDaysRemaining, resolveOriginalPostedAt } from '../shared/kijiji-dates'
 import { pickImageList } from '../shared/images'
-import { mergeImportedAds } from '../shared/import'
+import { formatImportSummary, mergeImportedAds } from '../shared/import'
+import { fetchKijijiAdsFromAccount } from '../shared/kijiji-feed'
 import { mapPosts, withPost } from '../shared/listing'
 import type { Message, MessageResponse } from '../shared/messages'
 import { getStaleListings, getStalePosts, hasRefreshQuota } from '../shared/stale'
@@ -20,7 +21,8 @@ import {
   updatePost,
 } from '../shared/storage'
 import type { ImportSummary, JobContext, JobType, Listing, ListingSnapshot, PlatformId } from '../shared/types'
-import { getImportJob, removeImportJob, removeImportJobs, saveImportJob } from './import-jobs'
+
+import { getImportJob, removeImportJob } from './import-jobs'
 import { getJob, getJobs, removeJob, removeJobs, saveJob } from './jobs'
 
 const STALE_ALARM = 'stale-check'
@@ -178,8 +180,12 @@ const startJobs = async (type: JobType, listingId: string, platforms: PlatformId
     try {
       const staleJobs = await removeJobs((job) => job.listingId === listingId && job.platform === platform)
       const previousStatus = staleJobs[0]?.previousStatus ?? (post.status === 'pending' ? 'not_posted' : post.status)
-      const isAutomatic = type === 'refresh' && platform === 'kijiji'
-      const tab = await chrome.tabs.create({ url: resolveJobUrl(type, platform, listing, post.url), active: !isAutomatic && index === 0 })
+      // Kijiji refreshes always run in a background tab so they never steal focus from the dashboard.
+      const runInBackground = type === 'refresh' && platform === 'kijiji'
+      const tab = await chrome.tabs.create({
+        url: resolveJobUrl(type, platform, listing, post.url),
+        active: runInBackground ? false : index === 0,
+      })
       if (tab.id === undefined) {
         if (reservedRefresh) await refundRefreshUsage()
         continue
@@ -224,8 +230,11 @@ const completeJob = async (tabId: number | undefined, result: JobResultMessage) 
     if (isAutomatic) await refundRefreshUsage()
     await updatePost(job.listingId, job.platform, { status: 'failed', error: result.error })
     if (isAutomatic) {
-      await chrome.tabs.update(tabId, { active: true }).catch(() => undefined)
-      await notifyRefreshProblem(job.listingId, `Repost failed: ${result.error ?? 'unknown error'}. Your ad details are saved — open the tab or click Post in the dashboard.`)
+      // Keep the failed refresh tab in the background; notify instead of stealing focus.
+      await notifyRefreshProblem(
+        job.listingId,
+        `Repost failed: ${result.error ?? 'unknown error'}. Your ad details are saved — open the background Kijiji tab or click Post in the dashboard.`,
+      )
     }
     return null
   }
@@ -285,15 +294,46 @@ const cancelJob = async (tabId?: number, error?: string) => {
   return null
 }
 
+const syncKijijiWithoutTabs = async (): Promise<ImportSummary> => {
+  try {
+    const result = await fetchKijijiAdsFromAccount()
+    if (result.needsLogin) {
+      return { platform: 'kijiji', added: 0, updated: 0, total: 0, needsLogin: true }
+    }
+    const listings = await getListings()
+    const { listings: merged, summary } = mergeImportedAds(listings, result.ads, 'kijiji')
+    await saveListings(merged)
+    await updateBadge()
+    return summary
+  } catch (error) {
+    return {
+      platform: 'kijiji',
+      added: 0,
+      updated: 0,
+      total: 0,
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
 const startImport = async (platforms: PlatformId[]) => {
   if (platforms.length === 0) throw new Error('Choose at least one marketplace')
-  for (const [index, platform] of platforms.entries()) {
-    await removeImportJobs((job) => job.platform === platform)
-    const tab = await chrome.tabs.create({ url: PLATFORMS[platform].importUrl, active: index === 0 })
-    if (tab.id === undefined) continue
-    await saveImportJob({ id: crypto.randomUUID(), platform, tabId: tab.id, createdAt: Date.now() })
+  const summaries: ImportSummary[] = []
+
+  // Kijiji syncs in the background via authenticated fetch — no tabs.
+  if (platforms.includes('kijiji')) {
+    summaries.push(await syncKijijiWithoutTabs())
   }
-  return null
+
+  // Facebook Marketplace sync is not live yet; do not open tabs.
+  if (platforms.includes('facebook')) {
+    summaries.push({ platform: 'facebook', added: 0, updated: 0, total: 0, error: 'Facebook sync coming soon' })
+  }
+
+  return {
+    summaries,
+    message: summaries.map(formatImportSummary).filter((text, index, all) => all.indexOf(text) === index).join(' · '),
+  }
 }
 
 const completeImport = async (

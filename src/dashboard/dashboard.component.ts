@@ -45,6 +45,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly query = signal('')
   readonly toast = signal<string | null>(null)
   readonly isSyncing = signal(false)
+  readonly isRefreshingAll = signal(false)
 
   readonly listings = this.listingStore.listings
   readonly isLoading = this.listingStore.isLoading
@@ -53,6 +54,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   readonly stats = computed(() => getListingStats(this.listings(), this.settings(), this.now()))
   readonly staleListings = computed(() => getStaleListings(this.listings(), this.settings(), this.now()))
+  readonly refreshableListings = computed(() => {
+    const settings = this.settings()
+    const now = this.now()
+    return this.listings()
+      .filter((listing) => isAvailableForRefresh(listing, settings, now))
+      .sort((a, b) => Number(isListingStale(b, settings, now)) - Number(isListingStale(a, settings, now)) || b.updatedAt - a.updatedAt)
+  })
   readonly visibleListings = computed(() => {
     const normalizedQuery = this.query().trim().toLowerCase()
     const settings = this.settings()
@@ -122,28 +130,51 @@ export class DashboardComponent implements OnInit, OnDestroy {
     void this.runAction(() => this.actions.snoozeListing(listing.id), 'Snoozed for 1 day')
   }
 
-  handleRefreshAllStale() {
-    const stale = this.staleListings()
-    void this.runAction(async () => {
-      let started = 0
-      for (const listing of stale) {
-        try {
-          await this.actions.refreshListing(listing, this.settings(), Date.now())
-          started += 1
-        } catch (error) {
-          if (started === 0) throw error
-          throw new Error(
-            `Started ${started} refresh${started === 1 ? '' : 'es'}, then stopped: ${this.actions.getErrorMessage(error)}`,
-          )
+  private async refreshListings(listings: Listing[], emptyMessage: string) {
+    if (listings.length === 0) {
+      this.toast.set(emptyMessage)
+      return
+    }
+    this.isRefreshingAll.set(true)
+    try {
+      await this.runAction(async () => {
+        let started = 0
+        for (const listing of listings) {
+          try {
+            await this.actions.refreshListing(listing, this.settings(), Date.now())
+            started += 1
+          } catch (error) {
+            if (started === 0) throw error
+            throw new Error(
+              `Started ${started} refresh${started === 1 ? '' : 'es'}, then stopped: ${this.actions.getErrorMessage(error)}`,
+            )
+          }
         }
-      }
-    }, `Refreshing ${stale.length} listing${stale.length === 1 ? '' : 's'}`)
+      }, `Refreshing ${listings.length} listing${listings.length === 1 ? '' : 's'}`)
+    } finally {
+      this.isRefreshingAll.set(false)
+    }
   }
 
-  handleSync(platforms: PlatformId[] = ['kijiji', 'facebook']) {
+  handleRefreshAll() {
+    void this.refreshListings(this.refreshableListings(), 'No ads available to refresh right now')
+  }
+
+  handleRefreshAllStale() {
+    void this.refreshListings(this.staleListings(), 'No never-refreshed ads to refresh')
+  }
+
+  handleSync(platforms: PlatformId[] = ['kijiji']) {
     this.isSyncing.set(true)
-    void this.runAction(async () => {
-      await this.actions.importFromMarketplaces(platforms)
-    }, 'Opened your marketplace account pages. Ads will appear here once import finishes.').finally(() => this.isSyncing.set(false))
+    void (async () => {
+      try {
+        const result = await this.actions.importFromMarketplaces(platforms)
+        this.toast.set(result?.message || 'Dashboard ads updated')
+      } catch (error) {
+        this.toast.set(this.actions.getErrorMessage(error))
+      } finally {
+        this.isSyncing.set(false)
+      }
+    })()
   }
 }

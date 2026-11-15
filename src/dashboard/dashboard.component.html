@@ -15,7 +15,15 @@
         <app-button [variant]="view() === 'settings' ? 'secondary' : 'ghost'" [ariaCurrent]="view() === 'settings' ? 'page' : undefined" (click)="view.set('settings')">
           Settings
         </app-button>
-        <app-button className="sm:ml-2" variant="primary" [disabled]="isSyncing()" (click)="handleSync()">
+        <app-button
+          className="sm:ml-2"
+          variant="warning"
+          [disabled]="isRefreshingAll() || !canRefreshMore() || refreshableListings().length === 0"
+          (click)="handleRefreshAll()"
+        >
+          {{ isRefreshingAll() ? 'Refreshing…' : 'Refresh All' }}
+        </app-button>
+        <app-button variant="primary" [disabled]="isSyncing()" (click)="handleSync()">
           {{ isSyncing() ? 'Syncing…' : 'Sync my ads' }}
         </app-button>
       </nav>
@@ -98,8 +106,9 @@
           </p>
           @if (listings().length === 0) {
             <div class="mt-5 flex flex-col items-stretch justify-center gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-              <app-button variant="primary" [disabled]="isSyncing()" (click)="handleSync(['kijiji'])">Sync from Kijiji</app-button>
-              <app-button [disabled]="isSyncing()" (click)="handleSync(['facebook'])">Sync from Facebook</app-button>
+              <app-button variant="primary" [disabled]="isSyncing()" (click)="handleSync(['kijiji'])">
+                {{ isSyncing() ? 'Syncing…' : 'Sync from Kijiji' }}
+              </app-button>
             </div>
           }
         </div>

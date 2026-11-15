@@ -3,7 +3,7 @@ import { DAY_MS, PLATFORM_IDS } from '../shared/constants'
 import { sendMessage } from '../shared/messages'
 import { getRefreshTargets } from '../shared/stale'
 import { updateListing } from '../shared/storage'
-import type { Listing, PlatformId, Settings } from '../shared/types'
+import type { ImportSummary, Listing, PlatformId, Settings } from '../shared/types'
 
 @Injectable({ providedIn: 'root' })
 export class ListingActionsService {
@@ -14,7 +14,7 @@ export class ListingActionsService {
     sendMessage({ type: 'REFRESH', listingId: listing.id, platforms: platforms ?? getRefreshTargets(listing, settings, now) })
 
   importFromMarketplaces = (platforms: PlatformId[] = PLATFORM_IDS) =>
-    sendMessage({ type: 'IMPORT', platforms })
+    sendMessage<{ summaries: ImportSummary[]; message: string }>({ type: 'IMPORT', platforms })
 
   snoozeListing = (listingId: string, days = 1) =>
     updateListing(listingId, (listing) => ({ ...listing, snoozedUntil: Date.now() + days * DAY_MS }))

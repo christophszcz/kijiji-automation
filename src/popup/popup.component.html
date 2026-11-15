@@ -44,7 +44,7 @@
   }
 
   <app-button className="w-full" variant="primary" [disabled]="isSyncing()" (click)="handleSync()">
-    {{ isSyncing() ? 'Opening account pages…' : 'Sync my ads' }}
+    {{ isSyncing() ? 'Syncing…' : 'Sync my ads' }}
   </app-button>
 
   <app-button className="w-full" (click)="handleOpenDashboard()">Dashboard</app-button>
