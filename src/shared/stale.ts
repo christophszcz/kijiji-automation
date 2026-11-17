@@ -31,14 +31,20 @@ export const hasRefreshQuota = (settings: Settings, now = Date.now()) => getRema
 
 export const isPostedOnKijiji = (listing: Listing) => listing.posts.kijiji.status === 'posted'
 
-/** Stale = Kijiji ad that is live but has never been refreshed. */
+/** Live Kijiji ad that has never been refreshed. */
 export const isKijijiNeverRefreshed = (listing: Listing) =>
   isPostedOnKijiji(listing) && listing.posts.kijiji.lastRefreshedAt === undefined
+
+/** Live Kijiji ad whose search rank is past page 1. */
+export const isKijijiPastPageOne = (listing: Listing) =>
+  isPostedOnKijiji(listing) && (listing.posts.kijiji.searchPage ?? 1) > 1
 
 export const isSnoozed = (listing: Listing, now: number) => (listing.snoozedUntil ?? 0) > now
 
 export const isPostStale = (post: PlatformPost, _settings?: Settings, _now?: number) =>
-  post.platform === 'kijiji' && post.status === 'posted' && post.lastRefreshedAt === undefined
+  post.platform === 'kijiji' &&
+  post.status === 'posted' &&
+  (post.lastRefreshedAt === undefined || (post.searchPage ?? 1) > 1)
 
 export const getStalePosts = (listing: Listing, _settings: Settings, now: number) => {
   if (isSnoozed(listing, now)) return []
@@ -46,7 +52,7 @@ export const getStalePosts = (listing: Listing, _settings: Settings, now: number
 }
 
 export const isListingStale = (listing: Listing, _settings?: Settings, now = Date.now()) =>
-  !isSnoozed(listing, now) && isKijijiNeverRefreshed(listing)
+  !isSnoozed(listing, now) && (isKijijiNeverRefreshed(listing) || isKijijiPastPageOne(listing))
 
 export const getStaleListings = (listings: Listing[], settings: Settings, now: number) =>
   listings.filter((listing) => isListingStale(listing, settings, now))

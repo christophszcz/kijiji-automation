@@ -47,8 +47,8 @@ export class SettingsPanelComponent {
       const staleCount = await this.actions.checkStaleNow()
       this.notify.emit(
         staleCount > 0
-          ? `${staleCount} never-refreshed listing${staleCount === 1 ? '' : 's'} found`
-          : 'No never-refreshed listings',
+          ? `${staleCount} stale listing${staleCount === 1 ? '' : 's'} found`
+          : 'No stale listings',
       )
     } catch (error) {
       this.notify.emit(this.actions.getErrorMessage(error))

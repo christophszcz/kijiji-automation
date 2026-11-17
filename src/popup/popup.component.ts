@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core'
 import { formatPrice } from '../shared/format'
-import { getListingStats, getStaleListings } from '../shared/stale'
+import { getListingStats, getStaleListings, isKijijiPastPageOne } from '../shared/stale'
 import type { Listing } from '../shared/types'
 import { ButtonComponent } from '../ui/button.component'
 import { ListingActionsService } from '../ui/listing-actions.service'
@@ -30,12 +30,13 @@ export class PopupComponent {
   readonly stats = computed(() => getListingStats(this.listings(), this.settings(), this.now()))
   readonly staleListings = computed(() => getStaleListings(this.listings(), this.settings(), this.now()))
   readonly formatPrice = formatPrice
+  readonly isPastPageOne = isKijijiPastPageOne
 
   readonly statItems = computed(() => {
     const stats = this.stats()
     return [
       { label: 'Available', value: stats.available, className: 'text-emerald-600' },
-      { label: 'Never refreshed', value: stats.stale, className: 'text-amber-600' },
+      { label: 'Stale', value: stats.stale, className: 'text-amber-600' },
       { label: 'All', value: stats.total, className: 'text-slate-900' },
     ]
   })

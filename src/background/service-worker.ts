@@ -67,7 +67,7 @@ const runStaleCheck = async ({ isForced = false } = {}) => {
   await chrome.notifications.create(REMINDER_NOTIFICATION_ID, {
     type: 'basic',
     iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
-    title: `${dueListings.length} listing${dueListings.length === 1 ? ' has' : 's have'} never been refreshed`,
+    title: `${dueListings.length} listing${dueListings.length === 1 ? ' needs' : 's need'} a refresh`,
     message: [...titles, moreCount > 0 ? `…and ${moreCount} more` : ''].filter(Boolean).join('\n'),
     buttons: [{ title: 'Review & refresh' }, { title: 'Snooze 1 day' }],
     priority: 1,

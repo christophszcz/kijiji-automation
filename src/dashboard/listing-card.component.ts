@@ -7,6 +7,8 @@ import {
   getPostAgeMs,
   hasRefreshQuota,
   isAvailableForRefresh,
+  isKijijiNeverRefreshed,
+  isKijijiPastPageOne,
   isListingStale,
   isPostStale,
   isSnoozed,
@@ -21,6 +23,9 @@ import { StatusPillComponent } from '../ui/status-pill.component'
   standalone: true,
   imports: [ButtonComponent, PlatformBadgeComponent, StatusPillComponent],
   templateUrl: './listing-card.component.html',
+  host: {
+    class: 'block h-full',
+  },
 })
 export class ListingCardComponent {
   readonly listing = input.required<Listing>()
@@ -40,6 +45,8 @@ export class ListingCardComponent {
   readonly getPostAgeMs = getPostAgeMs
 
   readonly isStale = computed(() => isListingStale(this.listing(), this.settings(), this.now()))
+  readonly isNeverRefreshed = computed(() => isKijijiNeverRefreshed(this.listing()))
+  readonly isPastPageOne = computed(() => isKijijiPastPageOne(this.listing()))
   readonly canRefresh = computed(() => isAvailableForRefresh(this.listing(), this.settings(), this.now()))
   readonly hasQuota = computed(() => hasRefreshQuota(this.settings(), this.now()))
   readonly coverImage = computed(() => this.listing().images[0])
@@ -65,7 +72,19 @@ export class ListingCardComponent {
       repostedAt: post.lastRefreshedAt,
       views: post.views,
       searchPage: post.searchPage,
+      isPastPageOne: (post.searchPage ?? 1) > 1,
     }
+  })
+  readonly staleBadgeLabel = computed(() => {
+    if (this.isPastPageOne() && this.isNeverRefreshed()) return 'Page > 1 · Never refreshed'
+    if (this.isPastPageOne()) return 'Kijiji page > 1'
+    if (this.isNeverRefreshed()) return 'Never refreshed'
+    return 'Stale'
+  })
+  readonly pageAlertTooltip = computed(() => {
+    const page = this.listing().posts.kijiji.searchPage
+    if (!this.isPastPageOne() || page === undefined) return null
+    return `This ad is on Kijiji page ${page}. Refresh to move it back toward page 1.`
   })
 
   isPostStaleNow(platformId: PlatformId) {

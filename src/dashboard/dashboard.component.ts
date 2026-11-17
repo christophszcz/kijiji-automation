@@ -161,7 +161,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   handleRefreshAllStale() {
-    void this.refreshListings(this.staleListings(), 'No never-refreshed ads to refresh')
+    void this.refreshListings(this.staleListings(), 'No stale ads to refresh')
   }
 
   handleSync(platforms: PlatformId[] = ['kijiji']) {
